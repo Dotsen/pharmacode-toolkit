@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+bench/
+benchmark-output/
+tests/fixtures/generated/
+*.log
+.DS_Store
+Thumbs.db
