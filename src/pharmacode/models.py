@@ -198,7 +198,6 @@ class DecoderConfig:
     width_pixel_tolerance_px: int = (
         2  # a class is also tight if its widths differ by <= 2 px (low DPI)
     )
-    ambiguity_margin: float = 0.10  # a width within 10 % of the class boundary is ambiguous
     physical_width_boundary_mm: float = (
         0.8  # narrow <= 0.7 mm, wide >= 0.9 mm in both Laetus variants
     )

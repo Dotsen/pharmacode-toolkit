@@ -6,6 +6,7 @@ from pharmacode.decoding import decode_bars
 from pharmacode.encoding import MAX_BARS, MAX_VALUE, MIN_BARS, MIN_VALUE, bars_to_value, encode
 from pharmacode.models import (
     BarKind,
+    BarSequence,
     BoundingBox,
     DecodedPharmacode,
     DecodeError,
@@ -24,6 +25,7 @@ from pharmacode.rendering import (
     render_negative,
     render_value,
 )
+from pharmacode.segmentation import extract_bars_from_upright
 
 __version__ = "0.1.0.dev0"
 
@@ -33,6 +35,7 @@ __all__ = [
     "MIN_BARS",
     "MIN_VALUE",
     "BarKind",
+    "BarSequence",
     "BoundingBox",
     "DecodeError",
     "DecodedPharmacode",
@@ -49,6 +52,7 @@ __all__ = [
     "decode_bars",
     "distort",
     "encode",
+    "extract_bars_from_upright",
     "render_bars",
     "render_negative",
     "render_value",
