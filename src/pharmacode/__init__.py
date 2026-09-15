@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pharmacode.decoding import decode_bars
 from pharmacode.encoding import MAX_BARS, MAX_VALUE, MIN_BARS, MIN_VALUE, bars_to_value, encode
+from pharmacode.io import InputError, load_image, save_image
 from pharmacode.models import (
     BarKind,
     BarSequence,
@@ -44,6 +45,7 @@ __all__ = [
     "Distortion",
     "ErrorCode",
     "ImageInfo",
+    "InputError",
     "NEGATIVE_KINDS",
     "RenderSpec",
     "__version__",
@@ -53,7 +55,9 @@ __all__ = [
     "distort",
     "encode",
     "extract_bars_from_upright",
+    "load_image",
     "render_bars",
     "render_negative",
     "render_value",
+    "save_image",
 ]
