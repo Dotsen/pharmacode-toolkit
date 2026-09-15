@@ -14,7 +14,16 @@ from pharmacode.models import (
     ErrorCode,
     ImageInfo,
 )
-from pharmacode.rendering import RenderSpec, render_bars, render_value
+from pharmacode.rendering import (
+    NEGATIVE_KINDS,
+    Distortion,
+    RenderSpec,
+    compose_scene,
+    distort,
+    render_bars,
+    render_negative,
+    render_value,
+)
 
 __version__ = "0.1.0.dev0"
 
@@ -29,13 +38,18 @@ __all__ = [
     "DecodedPharmacode",
     "DecodeResult",
     "DecoderConfig",
+    "Distortion",
     "ErrorCode",
     "ImageInfo",
+    "NEGATIVE_KINDS",
     "RenderSpec",
     "__version__",
     "bars_to_value",
+    "compose_scene",
     "decode_bars",
+    "distort",
     "encode",
     "render_bars",
+    "render_negative",
     "render_value",
 ]
