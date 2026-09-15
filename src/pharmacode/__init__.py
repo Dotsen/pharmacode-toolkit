@@ -14,6 +14,7 @@ from pharmacode.models import (
     ErrorCode,
     ImageInfo,
 )
+from pharmacode.rendering import RenderSpec, render_bars, render_value
 
 __version__ = "0.1.0.dev0"
 
@@ -30,8 +31,11 @@ __all__ = [
     "DecoderConfig",
     "ErrorCode",
     "ImageInfo",
+    "RenderSpec",
     "__version__",
     "bars_to_value",
     "decode_bars",
     "encode",
+    "render_bars",
+    "render_value",
 ]
