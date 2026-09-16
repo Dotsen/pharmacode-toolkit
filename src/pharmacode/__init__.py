@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pharmacode.decoding import decode_bars
+from pharmacode.detection import find_candidates
 from pharmacode.encoding import MAX_BARS, MAX_VALUE, MIN_BARS, MIN_VALUE, bars_to_value, encode
 from pharmacode.io import InputError, load_image, save_image
 from pharmacode.models import (
@@ -13,6 +14,7 @@ from pharmacode.models import (
     DecodeError,
     DecoderConfig,
     DecodeResult,
+    DetectionCandidate,
     ErrorCode,
     ImageInfo,
 )
@@ -42,6 +44,7 @@ __all__ = [
     "DecodedPharmacode",
     "DecodeResult",
     "DecoderConfig",
+    "DetectionCandidate",
     "Distortion",
     "ErrorCode",
     "ImageInfo",
@@ -55,6 +58,7 @@ __all__ = [
     "distort",
     "encode",
     "extract_bars_from_upright",
+    "find_candidates",
     "load_image",
     "render_bars",
     "render_negative",

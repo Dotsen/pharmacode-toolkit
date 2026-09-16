@@ -182,6 +182,7 @@ class DecoderConfig:
     min_bar_length_px: int = 8  # discard specks; 8 mm bars are >= 47 px even at 150 DPI
     min_bar_aspect: float = 4.0  # height / wide >= 8 / 2.5 = 3.2 at tolerance limits, 5.3 nominal
     min_fill_ratio: float = 0.75  # bars are solid rectangles; text and glyphs are not
+    min_contrast: float = 30.0  # ink vs paper after flattening; below this the page is blank
     # detection: grouping
     max_angle_diff_deg: float = 10.0  # bars of one code are parallel
     max_length_ratio: float = 1.25  # bars of one code share one height
