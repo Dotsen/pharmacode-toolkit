@@ -123,7 +123,10 @@ def candidate_from_chain(
     ux, uy = -ny, nx
     if ux < -1e-9 or (abs(ux) <= 1e-9 and uy < 0):
         ux, uy = -ux, -uy
-    orientation = math.degrees(math.atan2(uy, ux))
+    # atan2 of a cos/sin round trip leaves ~1e-15 deg noise even for exact right
+    # angles (radians(90) is an approximation of pi/2); round it away so an
+    # axis-aligned code reports an exact 0.0 or 90.0, not a false tilt.
+    orientation = round(math.degrees(math.atan2(uy, ux)), 9) + 0.0
     projections = [bar.cx * ux + bar.cy * uy for bar in chain]
     order = np.argsort(projections)
     ordered = [chain[i] for i in order]

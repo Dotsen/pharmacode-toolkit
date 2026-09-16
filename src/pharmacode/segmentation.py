@@ -11,8 +11,15 @@ from collections.abc import Sequence
 import numpy as np
 
 from pharmacode.decoding import check_bar_count
-from pharmacode.imageops import otsu_mask
-from pharmacode.models import BarKind, BarSequence, DecodeError, DecoderConfig, ErrorCode
+from pharmacode.imageops import otsu_mask, rotate_bound
+from pharmacode.models import (
+    BarKind,
+    BarSequence,
+    DecodeError,
+    DecoderConfig,
+    DetectionCandidate,
+    ErrorCode,
+)
 
 Run = tuple[bool, int, int]
 Outcome = tuple[tuple[str, ...], dict[str, float]]
@@ -273,3 +280,22 @@ def _sequence_from_mask(mask: np.ndarray, config: DecoderConfig) -> BarSequence 
 def extract_bars_from_upright(gray: np.ndarray, config: DecoderConfig) -> BarSequence | DecodeError:
     """Segment an image that contains one horizontal code with its quiet zones."""
     return _sequence_from_mask(otsu_mask(gray), config)
+
+
+def normalize_roi(gray: np.ndarray, candidate: DetectionCandidate) -> np.ndarray:
+    """Crop the candidate box and rotate it so the code axis runs left to right."""
+    box = candidate.bbox
+    roi = gray[box.y : box.y + box.height, box.x : box.x + box.width]
+    if abs(candidate.orientation_deg) < 0.05:
+        return roi
+    return rotate_bound(roi, candidate.orientation_deg, 255)
+
+
+def extract_bars(
+    gray: np.ndarray, candidate: DetectionCandidate, config: DecoderConfig
+) -> BarSequence | DecodeError:
+    """Segment one candidate; a failure is tagged with the candidate box."""
+    outcome = _sequence_from_mask(otsu_mask(normalize_roi(gray, candidate)), config)
+    if isinstance(outcome, DecodeError):
+        return DecodeError(outcome.code, outcome.message, candidate.bbox)
+    return outcome

@@ -100,6 +100,7 @@ class DecodedPharmacode:
     mirror_value: int
     confidence: float
     warnings: tuple[str, ...] = ()
+    bar_rects: tuple[BarRect, ...] = ()  # geometry for annotation; not part of the JSON contract
 
     def to_dict(self) -> dict[str, Any]:
         return {

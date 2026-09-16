@@ -18,6 +18,7 @@ from pharmacode.models import (
     ErrorCode,
     ImageInfo,
 )
+from pharmacode.pipeline import decode_image
 from pharmacode.rendering import (
     NEGATIVE_KINDS,
     Distortion,
@@ -55,6 +56,7 @@ __all__ = [
     "bars_to_value",
     "compose_scene",
     "decode_bars",
+    "decode_image",
     "distort",
     "encode",
     "extract_bars_from_upright",
