@@ -30,6 +30,7 @@ from pharmacode.rendering import (
     render_value,
 )
 from pharmacode.segmentation import extract_bars_from_upright
+from pharmacode.visualization import annotate
 
 __version__ = "0.1.0.dev0"
 
@@ -53,6 +54,7 @@ __all__ = [
     "NEGATIVE_KINDS",
     "RenderSpec",
     "__version__",
+    "annotate",
     "bars_to_value",
     "compose_scene",
     "decode_bars",

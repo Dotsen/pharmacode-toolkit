@@ -1,0 +1,49 @@
+{
+  "version": "0.1.0.dev0",
+  "image": {
+    "path": "value_1234.png",
+    "width": 208,
+    "height": 141,
+    "dpi": 150.0
+  },
+  "detections": [
+    {
+      "bbox": {
+        "x": 0,
+        "y": 23,
+        "width": 208,
+        "height": 94
+      },
+      "orientation_deg": 0.0,
+      "bars": [
+        "narrow",
+        "narrow",
+        "wide",
+        "wide",
+        "narrow",
+        "wide",
+        "narrow",
+        "narrow",
+        "wide",
+        "wide"
+      ],
+      "bar_widths_px": [
+        3,
+        3,
+        9,
+        9,
+        3,
+        9,
+        3,
+        3,
+        9,
+        9
+      ],
+      "value": 1234,
+      "mirror_value": 1835,
+      "confidence": 1.0,
+      "warnings": []
+    }
+  ],
+  "errors": []
+}

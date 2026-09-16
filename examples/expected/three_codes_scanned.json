@@ -1,0 +1,117 @@
+{
+  "version": "0.1.0.dev0",
+  "image": {
+    "path": "three_codes_scanned.png",
+    "width": 900,
+    "height": 520,
+    "dpi": 150.0
+  },
+  "detections": [
+    {
+      "bbox": {
+        "x": 39,
+        "y": 63,
+        "width": 161,
+        "height": 94
+      },
+      "orientation_deg": 0.0,
+      "bars": [
+        "narrow",
+        "wide",
+        "wide",
+        "wide",
+        "narrow",
+        "narrow"
+      ],
+      "bar_widths_px": [
+        3,
+        9,
+        9,
+        9,
+        3,
+        3
+      ],
+      "value": 91,
+      "mirror_value": 77,
+      "confidence": 1.0,
+      "warnings": []
+    },
+    {
+      "bbox": {
+        "x": 59,
+        "y": 323,
+        "width": 329,
+        "height": 94
+      },
+      "orientation_deg": 0.0,
+      "bars": [
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide",
+        "wide"
+      ],
+      "bar_widths_px": [
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "value": 131070,
+      "mirror_value": 131070,
+      "confidence": 0.905,
+      "warnings": [
+        "single_width_class"
+      ]
+    },
+    {
+      "bbox": {
+        "x": 663,
+        "y": 59,
+        "width": 94,
+        "height": 137
+      },
+      "orientation_deg": 90.0,
+      "bars": [
+        "narrow",
+        "wide",
+        "narrow",
+        "wide"
+      ],
+      "bar_widths_px": [
+        3,
+        9,
+        3,
+        9
+      ],
+      "value": 20,
+      "mirror_value": 25,
+      "confidence": 1.0,
+      "warnings": []
+    }
+  ],
+  "errors": []
+}

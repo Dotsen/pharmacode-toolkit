@@ -6,13 +6,17 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
 
 from pharmacode import __version__
 from pharmacode.encoding import encode
-from pharmacode.io import InputError, save_image
+from pharmacode.io import InputError, load_image, save_image
+from pharmacode.models import DecoderConfig, DecodeResult, ErrorCode
+from pharmacode.pipeline import decode_image
 from pharmacode.rendering import Distortion, RenderSpec, distort, render_bars
+from pharmacode.visualization import annotate
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -51,6 +55,15 @@ def build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--jpeg", type=int, default=None, help="JPEG quality round trip")
     generate.add_argument("--seed", type=int, default=0)
     generate.set_defaults(handler=run_generate)
+
+    decode = commands.add_parser("decode", help="find and decode Pharmacode in an image")
+    decode.add_argument("input", help="PNG, JPEG or TIFF file")
+    decode.add_argument("--dpi", type=float, default=None, help="resolution for physical checks")
+    decode.add_argument("--json", default=None, help="write the result here instead of stdout")
+    decode.add_argument("--annotated", default=None, help="write an annotated image here")
+    decode.add_argument("--min-bars", type=int, default=2)
+    decode.add_argument("--max-bars", type=int, default=16)
+    decode.set_defaults(handler=run_decode)
     return parser
 
 
@@ -93,6 +106,41 @@ def run_generate(args: argparse.Namespace) -> int:
         )
     )
     return EXIT_OK
+
+
+def exit_code_for(result: DecodeResult) -> int:
+    """Map a result to the documented exit codes."""
+    if result.detections and not result.errors:
+        return EXIT_OK
+    if not result.detections:
+        if any(error.code is ErrorCode.NO_CANDIDATES for error in result.errors):
+            return EXIT_NO_CANDIDATES
+        return EXIT_VALIDATION_FAILED
+    return EXIT_PARTIAL
+
+
+def run_decode(args: argparse.Namespace) -> int:
+    if args.dpi is not None and args.dpi <= 0:
+        return _fail("--dpi must be positive", EXIT_USAGE)
+    if not 1 <= args.min_bars <= args.max_bars <= 16:
+        return _fail("--min-bars and --max-bars must satisfy 1 <= min <= max <= 16", EXIT_USAGE)
+    try:
+        image = load_image(args.input)
+    except InputError as exc:
+        return _fail(str(exc), EXIT_INPUT)
+    config = DecoderConfig(dpi=args.dpi, min_bars=args.min_bars, max_bars=args.max_bars)
+    result = decode_image(image, config, path=str(args.input))
+    payload = json.dumps(result.to_dict(), indent=2)
+    if args.json:
+        Path(args.json).write_text(payload + "\n", encoding="utf-8")
+    else:
+        print(payload)
+    if args.annotated:
+        try:
+            save_image(args.annotated, annotate(image, result))
+        except InputError as exc:
+            return _fail(str(exc), EXIT_INPUT)
+    return exit_code_for(result)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

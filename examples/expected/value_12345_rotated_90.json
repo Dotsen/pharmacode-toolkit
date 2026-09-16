@@ -1,0 +1,55 @@
+{
+  "version": "0.1.0.dev0",
+  "image": {
+    "path": "value_12345_rotated_90.png",
+    "width": 141,
+    "height": 235,
+    "dpi": 150.0
+  },
+  "detections": [
+    {
+      "bbox": {
+        "x": 23,
+        "y": 0,
+        "width": 94,
+        "height": 235
+      },
+      "orientation_deg": 90.0,
+      "bars": [
+        "narrow",
+        "wide",
+        "narrow",
+        "wide",
+        "wide",
+        "wide",
+        "narrow",
+        "narrow",
+        "narrow",
+        "narrow",
+        "narrow",
+        "narrow",
+        "wide"
+      ],
+      "bar_widths_px": [
+        3,
+        9,
+        3,
+        9,
+        9,
+        9,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        9
+      ],
+      "value": 11136,
+      "mirror_value": 12345,
+      "confidence": 1.0,
+      "warnings": []
+    }
+  ],
+  "errors": []
+}
