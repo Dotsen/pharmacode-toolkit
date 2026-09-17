@@ -98,6 +98,10 @@ def test_validate_shape_rejects_ragged_heights_and_gaps() -> None:
     assert isinstance(error, DecodeError) and error.code is ErrorCode.INCONSISTENT_BAR_HEIGHT
     error = validate_shape([90, 90, 90], [12, 40], config)
     assert isinstance(error, DecodeError) and error.code is ErrorCode.INCONSISTENT_GAPS
+    # a 1.7x outlier gap among otherwise-uniform gaps: accepted under the old
+    # (0.5, 2.0) window, rejected once it is tightened to (0.6, 1.5) (see
+    # DecoderConfig.gap_ratio_range)
+    assert isinstance(validate_shape([90, 90, 90, 90], [12, 12, 20], config), DecodeError)
     warnings, metrics = validate_shape([90, 92, 89], [12, 13], config)
     assert (
         warnings == () and metrics["height_consistency"] > 0.8 and metrics["gap_consistency"] > 0.8

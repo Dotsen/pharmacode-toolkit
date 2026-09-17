@@ -44,6 +44,18 @@ def test_codes_too_close_are_not_read_as_two_values() -> None:
     assert result.errors or result.detections[0].value not in (4, 5)
 
 
+def test_codes_separated_by_one_gap_are_rejected_not_merged() -> None:
+    code_a, code_b = render_value(4), render_value(5)
+    inner_a, inner_b = code_a[:, BORDER:-BORDER], code_b[:, BORDER:-BORDER]
+    scene = compose_scene(
+        (code_a.shape[0], inner_a.shape[1] + inner_b.shape[1] + 20 + 2 * BORDER),
+        [(inner_a, BORDER, BORDER), (inner_b, BORDER + inner_a.shape[1] + 20, BORDER)],
+    )
+    result = decode_image(scene, DecoderConfig(dpi=300.0))
+    assert result.detections == ()
+    assert {e.code for e in result.errors} == {ErrorCode.INCONSISTENT_GAPS}
+
+
 def test_partial_overlap_with_text_line_fails_cleanly() -> None:
     code = render_value(1234)
     scene = code.copy()

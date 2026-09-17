@@ -232,7 +232,10 @@ class DecoderConfig:
     quiet_zone_hard_wide_ratio: float = 2.0  # without DPI: 6 mm / 2.5 mm max wide = 2.4
     quiet_zone_nominal_wide_ratio: float = 4.0  # 6 mm / 1.5 mm
     max_height_deviation: float = 0.20  # bars of one code share one height
-    gap_ratio_range: tuple[float, float] = (0.5, 2.0)  # gaps of one code are uniform
+    gap_ratio_range: tuple[float, float] = (
+        0.6,
+        1.5,
+    )  # one printed gap width; 1.5x tolerates blur and low DPI rounding
     single_class_no_dpi_confidence_cap: float = 0.5
 
     def with_updates(self, **changes: Any) -> DecoderConfig:
