@@ -64,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
     decode.add_argument("--min-bars", type=int, default=2)
     decode.add_argument("--max-bars", type=int, default=16)
     decode.set_defaults(handler=run_decode)
+
+    benchmark = commands.add_parser("benchmark", help="run the synthetic benchmark matrix")
+    benchmark.add_argument("--seed", type=int, default=20260919)
+    benchmark.add_argument("--output", default="benchmark-output")
+    benchmark.add_argument("--quick", action="store_true", help="small subset for CI")
+    benchmark.set_defaults(handler=run_benchmark_command)
     return parser
 
 
@@ -141,6 +147,14 @@ def run_decode(args: argparse.Namespace) -> int:
         except InputError as exc:
             return _fail(str(exc), EXIT_INPUT)
     return exit_code_for(result)
+
+
+def run_benchmark_command(args: argparse.Namespace) -> int:
+    from pharmacode.benchmark import render_markdown, run_benchmark
+
+    report = run_benchmark(seed=args.seed, output_dir=args.output, quick=args.quick)
+    print(render_markdown(report))
+    return EXIT_OK
 
 
 def main(argv: Sequence[str] | None = None) -> int:

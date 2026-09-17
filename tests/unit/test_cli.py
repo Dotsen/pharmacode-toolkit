@@ -111,3 +111,12 @@ def test_exit_code_for_partial_result() -> None:
     error = DecodeError(ErrorCode.INCONSISTENT_GAPS, "x", None)
     result = DecodeResult(ImageInfo(None, 1, 1, None), (detection,), (error,))
     assert exit_code_for(result) == EXIT_PARTIAL
+
+
+def test_benchmark_command_quick(tmp_path: Path, capsys) -> None:
+    assert (
+        main(["benchmark", "--seed", "1", "--output", str(tmp_path / "bench"), "--quick"])
+        == EXIT_OK
+    )
+    assert (tmp_path / "bench" / "results.md").exists()
+    assert "correct" in capsys.readouterr().out
