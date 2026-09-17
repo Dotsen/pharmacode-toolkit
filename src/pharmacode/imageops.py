@@ -32,13 +32,20 @@ def rotate_bound(image: np.ndarray, angle_deg: float, border_value: int = 255) -
     )
 
 
-def flatten_background(gray: np.ndarray, kernel_fraction: float) -> np.ndarray:
+def flatten_background(
+    gray: np.ndarray, kernel_fraction: float, min_kernel_px: int = 0
+) -> np.ndarray:
     """Divide by a morphological estimate of the paper to remove illumination gradients.
 
     A grayscale closing with a kernel larger than any bar removes the bars and
     leaves the background; dividing by it maps paper to white everywhere.
+    ``min_kernel_px`` is an optional absolute floor (see
+    ``DecoderConfig.background_kernel_min_mm``): the image-size-relative
+    ``kernel_fraction`` alone can undersize the kernel for a short, few-bar
+    code where the image's longer side is dominated by the fixed code height
+    rather than the bar width.
     """
-    size = max(15, int(max(gray.shape) * kernel_fraction)) | 1
+    size = max(15, min_kernel_px, int(max(gray.shape) * kernel_fraction)) | 1
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
     background = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
     background = cv2.GaussianBlur(background, (size, size), 0)

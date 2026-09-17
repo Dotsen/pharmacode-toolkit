@@ -180,11 +180,32 @@ class DecoderConfig:
 
     # detection: background flattening and component filtering
     background_kernel_fraction: float = 0.05  # closing kernel = 5 % of the longer side
+    # closing kernel floor, in mm, applied when the DPI is known (see
+    # flatten_background): the kernel must exceed the widest legal bar (wide
+    # tolerance up to 2.5 mm) so the morphological closing fully erases every
+    # bar from the background estimate, or that bar's contrast collapses to
+    # near zero after normalisation. A code's total height is a fixed ~24 mm
+    # (8 mm bars + two 8 mm quiet-zone/margin borders), so for a short,
+    # few-bar code the image's longer side is that height, not the code
+    # width, and 5 % of it (1.2 mm) is narrower than even a nominal 1.5 mm
+    # wide bar. 3.2 mm clears the 2.5 mm tolerance limit with margin while
+    # staying well below the span of a run of several same-class bars (a
+    # bigger, image-size-relative kernel washes those runs out wholesale
+    # instead of just erasing individual bars).
+    background_kernel_min_mm: float = 3.2
     min_bar_length_px: int = 8  # discard specks; 8 mm bars are >= 47 px even at 150 DPI
     # height 8 mm / wide 2.5 mm = 3.2 at tolerance limits; non-uniform scaling (1.3 x 0.7)
     # lowers a wide bar to 2.75, Laetus allows 5 mm bars on labels (aspect 2)
     min_bar_aspect: float = 2.5
-    min_fill_ratio: float = 0.75  # bars are solid rectangles; text and glyphs are not
+    # bars are solid rectangles; text and glyphs are not. A solid rectangle
+    # scores fill 1.0; a noisy bar's minAreaRect still spans its full extent,
+    # but Gaussian/JPEG mottling along the edges leaves some rows a pixel
+    # narrower than the widest row. Two real narrow bars from encode(12345),
+    # measured under the "harsh" degradation (blur 1.5, noise sigma 20,
+    # contrast 0.6, JPEG 40), scored fill 0.657 and 0.674 (about 0.66-0.68);
+    # 0.6 keeps them with a small margin, while an outline glyph (rectangle
+    # border plus a diagonal, both 1 px wide) stays far below it.
+    min_fill_ratio: float = 0.6
     min_contrast: float = 30.0  # ink vs paper after flattening; below this the page is blank
     # detection: grouping
     max_angle_diff_deg: float = 10.0  # bars of one code are parallel
