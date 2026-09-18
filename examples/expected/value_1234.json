@@ -9,9 +9,9 @@
   "detections": [
     {
       "bbox": {
-        "x": 0,
+        "x": 5,
         "y": 23,
-        "width": 208,
+        "width": 197,
         "height": 94
       },
       "orientation_deg": 0.0,

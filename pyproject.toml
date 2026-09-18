@@ -39,6 +39,25 @@ path = "src/pharmacode/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/pharmacode"]
 
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src",
+    "tests",
+    "tools",
+    "docs/algorithm.md",
+    "docs/benchmark.md",
+    "docs/cli.md",
+    "docs/limitations.md",
+    "docs/provenance.md",
+    "examples",
+    ".github",
+    ".gitignore",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from pharmacode.models import (
     BarKind,
     BoundingBox,
@@ -78,3 +80,8 @@ def test_config_defaults_derive_from_laetus_ratios() -> None:
     assert config.max_spacing_factor == 3.0
     tuned = config.with_updates(dpi=300.0, min_bars=4)
     assert tuned.dpi == 300.0 and tuned.min_bars == 4 and config.dpi is None
+
+
+def test_config_rejects_min_bars_below_two() -> None:
+    with pytest.raises(ValueError, match="min_bars"):
+        DecoderConfig(min_bars=1)

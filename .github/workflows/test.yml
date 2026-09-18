@@ -25,7 +25,7 @@ jobs:
       - name: Lint
         run: ruff check . && ruff format --check .
       - name: Tests
-        run: pytest -q
+        run: pytest
       - name: Quick benchmark
         run: pharmacode benchmark --seed 20260919 --output benchmark-output --quick
       - name: Upload benchmark failures

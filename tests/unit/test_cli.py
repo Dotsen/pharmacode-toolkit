@@ -56,6 +56,11 @@ def test_generate_reports_unwritable_output(tmp_path: Path) -> None:
     assert main(["generate", "--value", "5", "--output", str(target)]) == EXIT_INPUT
 
 
+def test_generate_unknown_suffix_is_input_error(tmp_path: Path) -> None:
+    target = tmp_path / "gen.txt"
+    assert main(["generate", "--value", "25", "--output", str(target)]) == EXIT_INPUT
+
+
 def test_generate_with_distortions_is_seeded(tmp_path: Path) -> None:
     args = ["generate", "--value", "91", "--rotation", "90", "--noise", "12", "--seed", "7"]
     assert main([*args, "--output", str(tmp_path / "a.png")]) == EXIT_OK
@@ -93,6 +98,13 @@ def test_decode_command_prints_json_to_stdout(tmp_path: Path, capsys) -> None:
     assert json.loads(capsys.readouterr().out)["detections"][0]["mirror_value"] == 20
 
 
+def test_decode_json_into_missing_directory_is_input_error(tmp_path: Path) -> None:
+    source = tmp_path / "code.png"
+    save_image(source, render_value(1234))
+    json_out = tmp_path / "missing" / "r.json"
+    assert main(["decode", str(source), "--json", str(json_out)]) == EXIT_INPUT
+
+
 def test_decode_command_exit_codes(tmp_path: Path, capsys) -> None:
     blank = tmp_path / "blank.png"
     save_image(blank, np.full((200, 300), 255, np.uint8))
@@ -103,6 +115,7 @@ def test_decode_command_exit_codes(tmp_path: Path, capsys) -> None:
     assert main(["decode", str(tmp_path / "missing.png")]) == EXIT_INPUT
     assert main(["decode", str(blank), "--dpi", "-1"]) == EXIT_USAGE
     assert main(["decode", str(blank), "--min-bars", "9", "--max-bars", "4"]) == EXIT_USAGE
+    assert main(["decode", str(blank), "--min-bars", "1"]) == EXIT_USAGE
     capsys.readouterr()
 
 

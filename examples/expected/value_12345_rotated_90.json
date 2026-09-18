@@ -10,9 +10,9 @@
     {
       "bbox": {
         "x": 23,
-        "y": 0,
+        "y": 5,
         "width": 94,
-        "height": 235
+        "height": 224
       },
       "orientation_deg": 90.0,
       "bars": [

@@ -30,3 +30,8 @@ def test_load_non_image(tmp_path: Path) -> None:
     junk.write_bytes(b"not an image")
     with pytest.raises(InputError):
         load_image(junk)
+
+
+def test_save_rejects_unknown_suffix(tmp_path: Path) -> None:
+    with pytest.raises(InputError):
+        save_image(tmp_path / "x.txt", render_value(3))

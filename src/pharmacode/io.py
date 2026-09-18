@@ -28,9 +28,12 @@ def save_image(path: str | Path, image: np.ndarray) -> None:
     """Write an image; the format follows the file suffix (PNG when absent)."""
     file = Path(path)
     suffix = file.suffix.lower() or ".png"
-    ok, buffer = cv2.imencode(suffix, image)
-    if not ok:
-        raise InputError(f"could not encode image as {suffix}")
     if not file.parent.is_dir():
         raise InputError(f"output directory does not exist: {file.parent}")
+    try:
+        ok, buffer = cv2.imencode(suffix, image)
+    except cv2.error as exc:
+        raise InputError(f"could not encode image as {suffix}: {exc}") from exc
+    if not ok:
+        raise InputError(f"could not encode image as {suffix}")
     buffer.tofile(str(file))

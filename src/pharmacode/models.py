@@ -238,6 +238,13 @@ class DecoderConfig:
     )  # one printed gap width; 1.5x tolerates blur and low DPI rounding
     single_class_no_dpi_confidence_cap: float = 0.5
 
+    def __post_init__(self) -> None:
+        if not 2 <= self.min_bars <= self.max_bars <= 16:
+            raise ValueError(
+                f"min_bars and max_bars must satisfy 2 <= min_bars <= max_bars <= 16, "
+                f"got min_bars={self.min_bars}, max_bars={self.max_bars}"
+            )
+
     def with_updates(self, **changes: Any) -> DecoderConfig:
         return replace(self, **changes)
 

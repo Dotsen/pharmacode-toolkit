@@ -136,10 +136,26 @@ def candidate_from_chain(
         for i in range(len(ordered) - 1)
     ]
     length = float(np.median([bar.length for bar in chain]))
-    extend_axis = max(config.max_spacing_length_ratio * length, 4.0 * max(spacings))
+    # The window must be wide enough to hold whatever validate_quiet_zone will demand once
+    # segmentation runs: 4x the wide bar width when one is known (quiet_zone_nominal_wide_ratio),
+    # estimated as either the thickest bar in the chain, or 3x the thinnest for an all-narrow
+    # code where no bar reaches the true wide width yet. It also has to clear the largest gap
+    # already seen between bars with room to spare (4.5x: benchmarked against 200 synthetic
+    # negatives, where a run with an oversized end gap needs the window to reach slightly past
+    # it so the neighbouring, disqualifying ink stays inside the candidate instead of being
+    # cropped away). But it must stay below the ~12 mm minimum separation Laetus leaves between
+    # two codes, or the window swallows a neighbouring code's bars as a false quiet zone; with a
+    # known DPI it is capped at 11 mm to leave that code's own 1 mm margin. Without DPI it falls
+    # back to the same formula in millimetre-free bar-width terms.
+    thicknesses = [bar.thickness for bar in chain]
+    extend_axis = max(
+        config.quiet_zone_nominal_wide_ratio * max(thicknesses),
+        config.quiet_zone_nominal_wide_ratio * 3.0 * min(thicknesses),
+        4.5 * (max(spacings) if spacings else max(thicknesses)),
+    )
     physical = config.mm_to_px(config.quiet_zone_nominal_mm + 1.0)
     if physical is not None:
-        extend_axis = max(extend_axis, physical)
+        extend_axis = min(max(extend_axis, physical), config.mm_to_px(11.0))
     extend_across = 0.5 * length
     corners = np.concatenate(
         [

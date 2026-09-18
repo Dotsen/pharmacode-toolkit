@@ -9,8 +9,11 @@
 - **Two codes closer together than a quiet zone** are grouped as one
   inconsistent candidate and rejected, rather than being separated and read
   individually.
-- **Tilt beyond about 10 degrees** is not grouped into a candidate at all;
-  only near-axis-aligned bars are chained together.
+- **Codes made only of wide bars, decoded without `--dpi`,** use an 18 mm
+  search window (there is no physical measurement to size it from, so it
+  falls back to a multiple of the thickest bar) and may be rejected as one
+  inconsistent group when another code lies closer than that.
+- **Tilts beyond ±5 degrees are outside the tested range.**
 - **DPI is never read from file or image metadata.** Pass `--dpi` explicitly
   whenever you know the resolution.
 - **Very small codes are not supported:** bars shorter than about 8 px, or

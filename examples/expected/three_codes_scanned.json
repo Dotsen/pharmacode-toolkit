@@ -9,9 +9,9 @@
   "detections": [
     {
       "bbox": {
-        "x": 39,
+        "x": 45,
         "y": 63,
-        "width": 161,
+        "width": 149,
         "height": 94
       },
       "orientation_deg": 0.0,
@@ -38,9 +38,9 @@
     },
     {
       "bbox": {
-        "x": 59,
+        "x": 41,
         "y": 323,
-        "width": 329,
+        "width": 365,
         "height": 94
       },
       "orientation_deg": 0.0,
@@ -90,9 +90,9 @@
     {
       "bbox": {
         "x": 663,
-        "y": 59,
+        "y": 65,
         "width": 94,
-        "height": 137
+        "height": 125
       },
       "orientation_deg": 90.0,
       "bars": [

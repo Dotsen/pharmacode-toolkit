@@ -40,10 +40,10 @@ Find and decode every Pharmacode in an image.
 | `--dpi FLOAT` | none | resolution in DPI; enables the physical checks (see [algorithm.md](algorithm.md)) |
 | `--json PATH` | none | write the JSON result here instead of stdout |
 | `--annotated PATH` | none | also write an annotated copy of the image here |
-| `--min-bars INT` | 2 | reject candidates with fewer bars than this |
-| `--max-bars INT` | 16 | reject candidates with more bars than this |
+| `--min-bars INT` | 2 | reject candidates with fewer bars than this (2..16) |
+| `--max-bars INT` | 16 | reject candidates with more bars than this (2..16) |
 
-`--min-bars` and `--max-bars` must satisfy `1 <= min-bars <= max-bars <= 16`.
+`--min-bars` and `--max-bars` must satisfy `2 <= min-bars <= max-bars <= 16`.
 
 ## `pharmacode benchmark`
 
@@ -74,7 +74,7 @@ Prints the resulting Markdown report to stdout as well as writing it.
   },
   "detections": [
     {
-      "bbox": { "x": 0, "y": 23, "width": 208, "height": 94 },
+      "bbox": { "x": 5, "y": 23, "width": 197, "height": 94 },
       "orientation_deg": 0.0,
       "bars": ["narrow", "narrow", "wide", "wide", "narrow", "wide", "narrow", "narrow", "wide", "wide"],
       "bar_widths_px": [3, 3, 9, 9, 3, 9, 3, 3, 9, 9],
@@ -94,13 +94,22 @@ for `NO_CANDIDATES`, which has no candidate to attach to); see
 what each `code` means and when it appears instead of, or alongside, a
 detection.
 
+A detection's `warnings` list holds zero or more of these strings:
+
+| warning | appears when |
+|---|---|
+| `single_width_class` | every bar in the code measured the same width, so there is no wide/narrow ratio to split on; the single class is assigned by comparing it to a physical or gap-derived boundary instead (`classify_widths` in `segmentation.py`) |
+| `single_width_class_no_dpi` | `single_width_class` above, and additionally no `--dpi` was given, so the boundary is the code's own median gap rather than a physical measurement in mm; confidence is capped at `single_class_no_dpi_confidence_cap` (0.5) |
+| `width_ratio_below_nominal` | two width classes were found and are each internally tight, but the wide/narrow ratio between their means is below 2.0 (nominal is 3.0), i.e. the split is real but narrower than the Laetus nominal ratio |
+| `quiet_zone_below_nominal` | the smaller of the leading/trailing quiet zone is at or above the hard minimum (so decoding still succeeds) but below the nominal quiet zone (6 mm with `--dpi`, else 4x the estimated wide bar width) |
+
 ## Exit codes
 
 | code | name | meaning |
 |---|---|---|
 | 0 | `EXIT_OK` | every candidate in the image decoded successfully (at least one detection, no errors) |
 | 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi`, or `--min-bars`/`--max-bars` out of order) — nothing was decoded and no JSON is produced |
-| 3 | `EXIT_INPUT` | an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; `generate` has no JSON result to produce either way |
+| 3 | `EXIT_INPUT` | an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
 | 4 | `EXIT_NO_CANDIDATES` | decoding ran but found no group of aligned bars at all (`NO_CANDIDATES`) |
 | 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation |
 | 6 | `EXIT_PARTIAL` | a mix: at least one candidate decoded successfully and at least one other failed |

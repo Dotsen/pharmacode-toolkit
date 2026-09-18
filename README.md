@@ -8,7 +8,7 @@ barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
 ```json
 {
   "detections": [
-    {"bbox": {"x": 39, "y": 63, "width": 161, "height": 94}, "orientation_deg": 0.0,
+    {"bbox": {"x": 45, "y": 63, "width": 149, "height": 94}, "orientation_deg": 0.0,
      "bars": ["narrow", "wide", "wide", "wide", "narrow", "narrow"],
      "bar_widths_px": [3, 9, 9, 9, 3, 3],
      "value": 91, "mirror_value": 77, "confidence": 1.0, "warnings": []}
@@ -44,6 +44,9 @@ pharmacode generate --value 12345 --dpi 300 --output sample.png
 pharmacode decode sample.png --dpi 300
 pharmacode decode sample.png --dpi 300 --json result.json --annotated result.png
 ```
+
+`python -m pharmacode ...` works the same as the `pharmacode` command above,
+for environments where installing a console script is inconvenient.
 
 From Python:
 

@@ -128,8 +128,8 @@ def exit_code_for(result: DecodeResult) -> int:
 def run_decode(args: argparse.Namespace) -> int:
     if args.dpi is not None and args.dpi <= 0:
         return _fail("--dpi must be positive", EXIT_USAGE)
-    if not 1 <= args.min_bars <= args.max_bars <= 16:
-        return _fail("--min-bars and --max-bars must satisfy 1 <= min <= max <= 16", EXIT_USAGE)
+    if not 2 <= args.min_bars <= args.max_bars <= 16:
+        return _fail("--min-bars and --max-bars must satisfy 2 <= min <= max <= 16", EXIT_USAGE)
     try:
         image = load_image(args.input)
     except InputError as exc:
@@ -138,7 +138,10 @@ def run_decode(args: argparse.Namespace) -> int:
     result = decode_image(image, config, path=str(args.input))
     payload = json.dumps(result.to_dict(), indent=2)
     if args.json:
-        Path(args.json).write_text(payload + "\n", encoding="utf-8")
+        try:
+            Path(args.json).write_text(payload + "\n", encoding="utf-8")
+        except OSError as exc:
+            return _fail(f"could not write JSON to {args.json}: {exc}", EXIT_INPUT)
     else:
         print(payload)
     if args.annotated:

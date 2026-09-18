@@ -81,8 +81,18 @@ def build_conditions(quick: bool) -> list[Condition]:
         Condition("dpi-150-blur-1", "blur", 150.0, Distortion(blur_sigma=1.0)),
     ]
     if quick:
+        # One condition per group (the first that appears), so a slice can't silently drop
+        # a whole group from CI coverage; rotation-180 is added on top for a second angle.
         keep = {"clean", "rotation", "blur", "noise", "multi", "scale", "tolerance"}
-        conditions = [c for c in conditions if c.group in keep][:8]
+        selected: list[Condition] = []
+        seen: set[str] = set()
+        for c in conditions:
+            if c.group in keep and c.group not in seen:
+                selected.append(c)
+                seen.add(c.group)
+            if c.group == "rotation" and c.name == "rotation-180":
+                selected.append(c)
+        conditions = selected
     return conditions
 
 

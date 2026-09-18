@@ -26,6 +26,9 @@ def decode_image(
     config = DecoderConfig() if config is None else config
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     info = ImageInfo(path, int(gray.shape[1]), int(gray.shape[0]), config.dpi)
+    if gray.size == 0:
+        error = DecodeError(ErrorCode.NO_CANDIDATES, "image is empty")
+        return DecodeResult(info, (), (error,))
     min_kernel_px = 0
     if config.dpi is not None:
         min_kernel_px = int(round(config.mm_to_px(config.background_kernel_min_mm)))
