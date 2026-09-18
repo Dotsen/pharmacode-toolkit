@@ -84,6 +84,10 @@ This project is an independent implementation from public descriptions of the
 format. It is **not validated** for regulated pharmaceutical packaging control and
 must not be used as the sole check in such a process.
 
+## Author
+
+Konstantin Dotsenko ([LinkedIn](https://www.linkedin.com/in/dotsen/)).
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

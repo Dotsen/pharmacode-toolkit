@@ -33,6 +33,9 @@ dev = ["pytest>=8", "ruff>=0.5", "build>=1.2"]
 [project.scripts]
 pharmacode = "pharmacode.cli:main"
 
+[project.urls]
+Author = "https://www.linkedin.com/in/dotsen/"
+
 [tool.hatch.version]
 path = "src/pharmacode/__init__.py"
 
