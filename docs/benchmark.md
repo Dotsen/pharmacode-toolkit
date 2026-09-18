@@ -62,6 +62,18 @@ A failing image (target value not found) is saved, annotated, under
 `failures/<condition>/<value>.png`; a false positive is saved under
 `failures/negatives/<kind>-<index>.png`.
 
+## CI gate
+
+After writing the report, `pharmacode benchmark` checks it against
+`--min-correct` (default 1.0) and `--max-false-positives` (default 0): any
+condition whose correct rate falls below `--min-correct`, or a negatives
+count above `--max-false-positives`, is printed to stderr as a `gate:`
+line and the command exits 7 (`EXIT_BENCHMARK_FAILED`). CI (see
+[test.yml](../.github/workflows/test.yml)) runs `pharmacode benchmark --quick`
+with no gate flags, so it relies on these strict defaults: a single
+regression anywhere in the matrix or a single false positive among the
+negatives turns the CI job red.
+
 ## Result
 
 Pasted verbatim from `benchmark-output/results.md` (produced by

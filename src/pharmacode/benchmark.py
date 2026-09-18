@@ -207,6 +207,22 @@ def run_benchmark(seed: int, output_dir: str | Path, quick: bool = False) -> dic
     return report
 
 
+def gate(report: dict[str, Any], min_correct: float, max_false_positives: int) -> list[str]:
+    """Return one message per violated threshold; empty means the benchmark passed."""
+    violations: list[str] = []
+    for name, row in report["conditions"].items():
+        if row["correct_rate"] < min_correct:
+            violations.append(
+                f"{name}: correct rate {row['correct_rate']:.1%} below {min_correct:.1%}"
+            )
+    false_positives = report["negatives"]["false_positives"]
+    if false_positives > max_false_positives:
+        violations.append(
+            f"negatives: {false_positives} false positives, maximum {max_false_positives}"
+        )
+    return violations
+
+
 def render_markdown(report: dict[str, Any]) -> str:
     env = report["environment"]
     lines = [

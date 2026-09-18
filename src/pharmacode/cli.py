@@ -24,6 +24,7 @@ EXIT_INPUT = 3
 EXIT_NO_CANDIDATES = 4
 EXIT_VALIDATION_FAILED = 5
 EXIT_PARTIAL = 6
+EXIT_BENCHMARK_FAILED = 7
 
 
 def _fail(message: str, code: int) -> int:
@@ -69,6 +70,13 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--seed", type=int, default=20260919)
     benchmark.add_argument("--output", default="benchmark-output")
     benchmark.add_argument("--quick", action="store_true", help="small subset for CI")
+    benchmark.add_argument(
+        "--min-correct",
+        type=float,
+        default=1.0,
+        help="fail unless every condition reaches this correct rate",
+    )
+    benchmark.add_argument("--max-false-positives", type=int, default=0)
     benchmark.set_defaults(handler=run_benchmark_command)
     return parser
 
@@ -82,17 +90,20 @@ def run_generate(args: argparse.Namespace) -> int:
         return _fail("--dpi must be positive", EXIT_USAGE)
     spec = RenderSpec.miniature(dpi=args.dpi) if args.miniature else RenderSpec(dpi=args.dpi)
     image = render_bars(bars, spec)
-    distortion = Distortion(
-        rotation_deg=args.rotation,
-        scale_x=args.scale_x,
-        scale_y=args.scale_y,
-        perspective_deg=args.perspective,
-        blur_sigma=args.blur,
-        noise_sigma=args.noise,
-        contrast=args.contrast,
-        illumination_gradient=args.illumination,
-        jpeg_quality=args.jpeg,
-    )
+    try:
+        distortion = Distortion(
+            rotation_deg=args.rotation,
+            scale_x=args.scale_x,
+            scale_y=args.scale_y,
+            perspective_deg=args.perspective,
+            blur_sigma=args.blur,
+            noise_sigma=args.noise,
+            contrast=args.contrast,
+            illumination_gradient=args.illumination,
+            jpeg_quality=args.jpeg,
+        )
+    except ValueError as exc:
+        return _fail(str(exc), EXIT_USAGE)
     if distortion != Distortion():
         image = distort(image, distortion, np.random.default_rng(args.seed))
     try:
@@ -153,10 +164,23 @@ def run_decode(args: argparse.Namespace) -> int:
 
 
 def run_benchmark_command(args: argparse.Namespace) -> int:
-    from pharmacode.benchmark import render_markdown, run_benchmark
+    from pharmacode.benchmark import gate, render_markdown, run_benchmark
 
+    if not 0.0 <= args.min_correct <= 1.0:
+        return _fail("--min-correct must be between 0.0 and 1.0", EXIT_USAGE)
+    if args.max_false_positives < 0:
+        return _fail("--max-false-positives must be >= 0", EXIT_USAGE)
     report = run_benchmark(seed=args.seed, output_dir=args.output, quick=args.quick)
     print(render_markdown(report))
+    violations = gate(report, args.min_correct, args.max_false_positives)
+    if violations:
+        for violation in violations:
+            print(f"gate: {violation}", file=sys.stderr)
+        return EXIT_BENCHMARK_FAILED
+    print(
+        f"gate: passed (min correct {args.min_correct:.0%}, "
+        f"max false positives {args.max_false_positives})"
+    )
     return EXIT_OK
 
 

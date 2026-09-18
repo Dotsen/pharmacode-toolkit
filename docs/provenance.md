@@ -1,8 +1,11 @@
 # Provenance
 
 - This toolkit is an independent implementation written from public
-  descriptions of the one-track Pharmacode format. It shares no code, parameters
-  or data with any other Pharmacode reader.
+  descriptions of the one-track Pharmacode format. No code, data or
+  implementation-specific parameters were copied from any other Pharmacode
+  reader; the physical dimensions and tolerances come from the public Laetus
+  specification, so they naturally coincide with any implementation that
+  follows it.
 - Every image in this repository (`examples/`) and every test fixture is produced
   by `pharmacode.rendering` from a fixed seed. No real packaging artwork, product
   names or scanned material are included.

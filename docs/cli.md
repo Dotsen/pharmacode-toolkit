@@ -17,14 +17,14 @@ Render a synthetic Pharmacode image.
 | `--dpi FLOAT` | 300.0 | render resolution; must be positive |
 | `--miniature` | off | use the Laetus miniature dimensions instead of standard |
 | `--rotation FLOAT` | 0.0 | rotation in degrees, counter-clockwise |
-| `--scale-x FLOAT` | 1.0 | horizontal scale factor |
-| `--scale-y FLOAT` | 1.0 | vertical scale factor |
-| `--perspective FLOAT` | 0.0 | perspective tilt in degrees |
-| `--blur FLOAT` | 0.0 | Gaussian blur sigma, in pixels |
-| `--noise FLOAT` | 0.0 | Gaussian noise sigma |
-| `--contrast FLOAT` | 1.0 | contrast factor; 1.0 is full contrast |
-| `--illumination FLOAT` | 0.0 | illumination-gradient brightness loss, 0..1 |
-| `--jpeg INT` | none | round-trip the image through JPEG at this quality |
+| `--scale-x FLOAT` | 1.0 | horizontal scale factor; must be > 0 |
+| `--scale-y FLOAT` | 1.0 | vertical scale factor; must be > 0 |
+| `--perspective FLOAT` | 0.0 | perspective tilt in degrees; abs() must be < 45 |
+| `--blur FLOAT` | 0.0 | Gaussian blur sigma, in pixels; must be >= 0 |
+| `--noise FLOAT` | 0.0 | Gaussian noise sigma; must be >= 0 |
+| `--contrast FLOAT` | 1.0 | contrast factor; 1.0 is full contrast; must be >= 0 |
+| `--illumination FLOAT` | 0.0 | illumination-gradient brightness loss; must be 0..1 |
+| `--jpeg INT` | none | round-trip the image through JPEG at this quality; must be 1..100 |
 | `--seed INT` | 0 | seed for every random distortion above |
 
 On success it writes the image and prints a one-line JSON summary
@@ -54,8 +54,12 @@ Run the synthetic benchmark matrix described in [benchmark.md](benchmark.md).
 | `--seed INT` | 20260919 | seed for every rendered image |
 | `--output PATH` | `benchmark-output` | directory for `results.md`, `results.json` and `failures/` |
 | `--quick` | off | small subset of conditions and values, for CI |
+| `--min-correct FLOAT` | 1.0 | fail unless every condition reaches this correct rate; must be 0.0..1.0 |
+| `--max-false-positives INT` | 0 | fail if more than this many negative images produce a detection; must be >= 0 |
 
-Prints the resulting Markdown report to stdout as well as writing it.
+Prints the resulting Markdown report to stdout as well as writing it, then
+checks the report against `--min-correct` and `--max-false-positives` (see
+[benchmark.md](benchmark.md#ci-gate)).
 
 ## JSON contract
 
@@ -108,11 +112,12 @@ A detection's `warnings` list holds zero or more of these strings:
 | code | name | meaning |
 |---|---|---|
 | 0 | `EXIT_OK` | every candidate in the image decoded successfully (at least one detection, no errors) |
-| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi`, or `--min-bars`/`--max-bars` out of order) — nothing was decoded and no JSON is produced |
+| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
 | 3 | `EXIT_INPUT` | an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
 | 4 | `EXIT_NO_CANDIDATES` | decoding ran but found no group of aligned bars at all (`NO_CANDIDATES`) |
 | 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation |
 | 6 | `EXIT_PARTIAL` | a mix: at least one candidate decoded successfully and at least one other failed |
+| 7 | `EXIT_BENCHMARK_FAILED` | benchmark gate failed: a condition fell below `--min-correct` or negatives exceeded `--max-false-positives` |
 
 For `decode`, the JSON result is written (to `--json` or stdout) for every
 exit code that follows from actually running the decoder — 0, 4, 5 and 6, and
@@ -124,4 +129,6 @@ to report.
 
 `generate` and `benchmark` do not produce this JSON result; `generate` prints
 its own one-line summary on success (see above) and exits 0, 2 or 3.
-`benchmark` always exits 0 once it finishes writing its report.
+`benchmark` writes its report and then exits 0 or 7, depending on the gate
+(see [benchmark.md](benchmark.md#ci-gate)); a bad `--min-correct` or
+`--max-false-positives` is rejected before the benchmark runs, exiting 2.

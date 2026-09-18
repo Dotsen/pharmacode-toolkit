@@ -93,6 +93,27 @@ class Distortion:
     illumination_gradient: float = 0.0
     jpeg_quality: int | None = None
 
+    def __post_init__(self) -> None:
+        if self.scale_x <= 0:
+            raise ValueError(f"scale_x must be > 0, got {self.scale_x}")
+        if self.scale_y <= 0:
+            raise ValueError(f"scale_y must be > 0, got {self.scale_y}")
+        if self.blur_sigma < 0:
+            raise ValueError(f"blur_sigma must be >= 0, got {self.blur_sigma}")
+        if self.noise_sigma < 0:
+            raise ValueError(f"noise_sigma must be >= 0, got {self.noise_sigma}")
+        if self.contrast < 0:
+            raise ValueError(f"contrast must be >= 0, got {self.contrast}")
+        if not 0 <= self.illumination_gradient <= 1:
+            raise ValueError(
+                f"illumination_gradient must be between 0 and 1, got {self.illumination_gradient}"
+            )
+        if self.jpeg_quality is not None and not 1 <= self.jpeg_quality <= 100:
+            raise ValueError(f"jpeg_quality must be between 1 and 100, got {self.jpeg_quality}")
+        # 45 degrees is where the projective shift reaches half the image width.
+        if abs(self.perspective_deg) >= 45:
+            raise ValueError(f"perspective_deg must have abs() < 45, got {self.perspective_deg}")
+
 
 def distort(
     image: np.ndarray, distortion: Distortion, rng: np.random.Generator | None = None

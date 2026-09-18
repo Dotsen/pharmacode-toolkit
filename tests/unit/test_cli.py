@@ -51,6 +51,18 @@ def test_generate_rejects_bad_dpi(tmp_path: Path) -> None:
     )
 
 
+def test_generate_rejects_non_positive_scale(tmp_path: Path, capsys) -> None:
+    args = ["generate", "--value", "25", "--scale-x", "0", "--output", str(tmp_path / "g.png")]
+    assert main(args) == EXIT_USAGE
+    assert "error:" in capsys.readouterr().err
+
+
+def test_generate_rejects_negative_noise(tmp_path: Path, capsys) -> None:
+    args = ["generate", "--value", "25", "--noise", "-1", "--output", str(tmp_path / "g.png")]
+    assert main(args) == EXIT_USAGE
+    assert "error:" in capsys.readouterr().err
+
+
 def test_generate_reports_unwritable_output(tmp_path: Path) -> None:
     target = tmp_path / "missing-dir" / "x.png"
     assert main(["generate", "--value", "5", "--output", str(target)]) == EXIT_INPUT
@@ -132,4 +144,34 @@ def test_benchmark_command_quick(tmp_path: Path, capsys) -> None:
         == EXIT_OK
     )
     assert (tmp_path / "bench" / "results.md").exists()
-    assert "correct" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "correct" in out
+    assert "gate: passed" in out
+
+
+def test_benchmark_rejects_bad_min_correct(tmp_path: Path) -> None:
+    args = [
+        "benchmark",
+        "--seed",
+        "1",
+        "--output",
+        str(tmp_path / "bench"),
+        "--quick",
+        "--min-correct",
+        "1.5",
+    ]
+    assert main(args) == EXIT_USAGE
+
+
+def test_benchmark_rejects_negative_max_false_positives(tmp_path: Path) -> None:
+    args = [
+        "benchmark",
+        "--seed",
+        "1",
+        "--output",
+        str(tmp_path / "bench"),
+        "--quick",
+        "--max-false-positives",
+        "-1",
+    ]
+    assert main(args) == EXIT_USAGE

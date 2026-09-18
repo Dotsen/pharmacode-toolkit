@@ -141,3 +141,36 @@ def test_render_negative_kinds(kind: str, rng: np.random.Generator) -> None:
 def test_render_negative_rejects_unknown_kind(rng: np.random.Generator) -> None:
     with pytest.raises(ValueError):
         render_negative("qr", rng)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"scale_x": 0.0},
+        {"scale_y": 0.0},
+        {"blur_sigma": -1.0},
+        {"noise_sigma": -1.0},
+        {"contrast": -1.0},
+        {"illumination_gradient": 1.5},
+        {"jpeg_quality": 0},
+        {"perspective_deg": 45.0},
+    ],
+)
+def test_distortion_rejects_invalid_parameters(kwargs: dict[str, float | int]) -> None:
+    with pytest.raises(ValueError):
+        Distortion(**kwargs)
+
+
+def test_distortion_accepts_default_and_fully_valid_values() -> None:
+    assert Distortion() == Distortion()
+    Distortion(
+        rotation_deg=10.0,
+        scale_x=0.5,
+        scale_y=2.0,
+        perspective_deg=-30.0,
+        blur_sigma=1.0,
+        noise_sigma=5.0,
+        contrast=0.5,
+        illumination_gradient=0.5,
+        jpeg_quality=50,
+    )

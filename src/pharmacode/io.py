@@ -33,7 +33,9 @@ def save_image(path: str | Path, image: np.ndarray) -> None:
     try:
         ok, buffer = cv2.imencode(suffix, image)
     except cv2.error as exc:
-        raise InputError(f"could not encode image as {suffix}: {exc}") from exc
+        raise InputError(
+            f"unsupported image format {suffix!r}; use .png, .jpg/.jpeg or .tif/.tiff"
+        ) from exc
     if not ok:
-        raise InputError(f"could not encode image as {suffix}")
+        raise InputError(f"unsupported image format {suffix!r}; use .png, .jpg/.jpeg or .tif/.tiff")
     buffer.tofile(str(file))
