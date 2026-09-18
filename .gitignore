@@ -8,7 +8,7 @@ build/
 .pytest_cache/
 .ruff_cache/
 bench/
-benchmark-output/
+benchmark-output*/
 tests/fixtures/generated/
 *.log
 .DS_Store

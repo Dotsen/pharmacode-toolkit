@@ -1,0 +1,64 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e .[dev]
+      - name: Lint
+        run: ruff check . && ruff format --check .
+      - name: Tests
+        run: pytest -q
+      - name: Quick benchmark
+        run: pharmacode benchmark --seed 20260919 --output benchmark-output --quick
+      - name: Upload benchmark failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-failures-${{ matrix.os }}-py${{ matrix.python }}
+          path: benchmark-output/failures
+          if-no-files-found: ignore
+
+  package:
+    name: build and install smoke test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel
+        run: python -m pip install --upgrade pip build && python -m build
+      - name: Install wheel into a fresh environment and decode a generated code
+        shell: bash
+        run: |
+          python -m venv smoke
+          if [ -x smoke/bin/python ]; then PY=smoke/bin/python; else PY=smoke/Scripts/python.exe; fi
+          "$PY" -m pip install --quiet dist/*.whl
+          "$PY" -m pharmacode generate --value 12345 --dpi 300 --output smoke.png
+          "$PY" -m pharmacode decode smoke.png --dpi 300 --json smoke.json
+          "$PY" -c "import json; d = json.load(open('smoke.json')); assert d['detections'][0]['value'] == 12345, d"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}
+          path: dist/*.whl
