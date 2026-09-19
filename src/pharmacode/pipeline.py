@@ -50,6 +50,16 @@ def decode_image(
             continue
         value, mirror_value = decode_bars(sequence.kinds)
         confidence = min(sequence.metrics.values()) if sequence.metrics else 0.0
+        if confidence < config.min_confidence:
+            errors.append(
+                DecodeError(
+                    ErrorCode.LOW_CONFIDENCE,
+                    f"confidence {confidence:.2f} below minimum {config.min_confidence:.2f} "
+                    f"(value {value}, mirror {mirror_value})",
+                    candidate.bbox,
+                )
+            )
+            continue
         rects = candidate.bars if len(candidate.bars) == len(sequence.kinds) else ()
         detections.append(
             DecodedPharmacode(

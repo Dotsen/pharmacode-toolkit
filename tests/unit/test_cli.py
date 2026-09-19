@@ -26,7 +26,7 @@ from pharmacode.models import (
     ErrorCode,
     ImageInfo,
 )
-from pharmacode.rendering import render_value
+from pharmacode.rendering import RenderSpec, render_value
 from pharmacode.segmentation import extract_bars_from_upright
 
 
@@ -129,6 +129,27 @@ def test_decode_command_exit_codes(tmp_path: Path, capsys) -> None:
     assert main(["decode", str(blank), "--min-bars", "9", "--max-bars", "4"]) == EXIT_USAGE
     assert main(["decode", str(blank), "--min-bars", "1"]) == EXIT_USAGE
     capsys.readouterr()
+
+
+def test_decode_rejects_out_of_range_min_confidence(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "code.png"
+    save_image(source, render_value(1234))
+    assert main(["decode", str(source), "--min-confidence", "2"]) == EXIT_USAGE
+    assert "error:" in capsys.readouterr().err
+
+
+def test_decode_min_confidence_rejects_a_weak_trimmed_code(tmp_path: Path, capsys) -> None:
+    spec = RenderSpec()
+    border = spec.px(6.0) + spec.px(2.0)
+    trimmed = render_value(1234, spec)[:, border - 50 : -(border - 50)]
+    source = tmp_path / "trimmed.png"
+    save_image(source, trimmed)
+
+    code = main(["decode", str(source), "--dpi", "300", "--min-confidence", "0.9"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == EXIT_VALIDATION_FAILED
+    assert payload["detections"] == []
+    assert [e["code"] for e in payload["errors"]] == ["LOW_CONFIDENCE"]
 
 
 def test_exit_code_for_partial_result() -> None:

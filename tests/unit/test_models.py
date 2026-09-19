@@ -28,6 +28,7 @@ def test_error_codes_are_stable_strings() -> None:
         "QUIET_ZONE_VIOLATION",
         "INCONSISTENT_BAR_HEIGHT",
         "INCONSISTENT_GAPS",
+        "LOW_CONFIDENCE",
     }
 
 
@@ -85,3 +86,12 @@ def test_config_defaults_derive_from_laetus_ratios() -> None:
 def test_config_rejects_min_bars_below_two() -> None:
     with pytest.raises(ValueError, match="min_bars"):
         DecoderConfig(min_bars=1)
+
+
+def test_config_min_confidence_defaults_to_zero_and_validates_range() -> None:
+    assert DecoderConfig().min_confidence == 0.0
+    assert DecoderConfig(min_confidence=1.0).min_confidence == 1.0
+    with pytest.raises(ValueError, match="min_confidence"):
+        DecoderConfig(min_confidence=-0.01)
+    with pytest.raises(ValueError, match="min_confidence"):
+        DecoderConfig(min_confidence=1.01)

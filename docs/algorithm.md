@@ -230,6 +230,7 @@ where the number comes from:
 | `max_height_deviation` | 0.20 | bars of one code share one height, within 20% of the median |
 | `gap_ratio_range` | (0.6, 1.5) | one code's printed gaps should be close to one width; the 1.5x upper tolerance absorbs blur and low-DPI rounding |
 | `single_class_no_dpi_confidence_cap` | 0.5 | ceiling on the width-margin (and so overall) confidence for a single-width-class code classified without DPI, since a gap-based ruler has no absolute scale |
+| `min_confidence` | 0.0 | detections below this confidence are reported as `LOW_CONFIDENCE` errors instead (`decode --min-confidence`); 0 keeps every decoded candidate |
 
 ## 5. Detection errors versus decoding errors
 
@@ -246,6 +247,14 @@ it is always attached to that candidate's `bbox` so the caller (and the
 `TOO_FEW_BARS`, `TOO_MANY_BARS`, `INCONSISTENT_BAR_HEIGHT`,
 `INCONSISTENT_GAPS`, `WIDTH_CLASSES_NOT_SEPARABLE`, `AMBIGUOUS_WIDTH` and
 `QUIET_ZONE_VIOLATION`.
+
+`LOW_CONFIDENCE` is also a decoding outcome, but a later one than the six
+above: it replaces a detection that segmentation and classification already
+completed successfully — `value` and `mirror_value` are known — once
+`pipeline.decode_image` finds its `confidence` (section 6) below
+`DecoderConfig.min_confidence` (`decode --min-confidence`, default 0.0, which
+keeps every candidate). The message still carries the value and its mirror,
+for diagnosis, even though neither is reported as a detection.
 
 Two further codes, `INPUT_UNREADABLE` and `INVALID_ARGUMENT`, exist in
 `ErrorCode` as part of the JSON contract's vocabulary but are never

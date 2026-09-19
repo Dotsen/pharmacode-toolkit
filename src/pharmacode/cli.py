@@ -70,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="treat a quiet zone cut by the image edge as a warning instead of "
         "QUIET_ZONE_VIOLATION",
     )
+    decode.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        help="reject detections below this confidence as LOW_CONFIDENCE errors (0.0..1.0)",
+    )
     decode.set_defaults(handler=run_decode)
 
     benchmark = commands.add_parser("benchmark", help="run the synthetic benchmark matrix")
@@ -147,6 +153,8 @@ def run_decode(args: argparse.Namespace) -> int:
         return _fail("--dpi must be positive", EXIT_USAGE)
     if not 2 <= args.min_bars <= args.max_bars <= 16:
         return _fail("--min-bars and --max-bars must satisfy 2 <= min <= max <= 16", EXIT_USAGE)
+    if not 0.0 <= args.min_confidence <= 1.0:
+        return _fail("--min-confidence must be between 0.0 and 1.0", EXIT_USAGE)
     try:
         image = load_image(args.input)
     except InputError as exc:
@@ -156,6 +164,7 @@ def run_decode(args: argparse.Namespace) -> int:
         min_bars=args.min_bars,
         max_bars=args.max_bars,
         allow_truncated_quiet_zone=args.allow_cropped_quiet_zone,
+        min_confidence=args.min_confidence,
     )
     result = decode_image(image, config, path=str(args.input))
     payload = json.dumps(result.to_dict(), indent=2)

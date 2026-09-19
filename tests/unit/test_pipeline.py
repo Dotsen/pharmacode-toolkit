@@ -4,7 +4,7 @@ import numpy as np
 
 from pharmacode.models import DecoderConfig, ErrorCode
 from pharmacode.pipeline import decode_image
-from pharmacode.rendering import Distortion, distort, render_value
+from pharmacode.rendering import Distortion, RenderSpec, distort, render_value
 
 
 def test_decode_image_clean_code() -> None:
@@ -41,3 +41,26 @@ def test_decode_image_error_carries_candidate_bbox() -> None:
     assert not result.detections
     [error] = result.errors
     assert error.code is ErrorCode.QUIET_ZONE_VIOLATION and error.bbox is not None
+
+
+def test_decode_image_min_confidence_downgrades_a_weak_detection_to_an_error() -> None:
+    # same tight-crop scene as test_quiet_zone_below_nominal_is_a_warning: it decodes with
+    # confidence < 0.8 by default, so a 0.9 floor rejects it while a clean code stays intact.
+    spec = RenderSpec()
+    border = spec.px(6.0) + spec.px(2.0)
+    code = render_value(1234, spec)
+    trimmed = code[:, border - 50 : -(border - 50)]
+
+    unfiltered = decode_image(trimmed, DecoderConfig(dpi=300.0))
+    [detection] = unfiltered.detections
+    assert detection.confidence < 0.9
+
+    result = decode_image(trimmed, DecoderConfig(dpi=300.0, min_confidence=0.9))
+    assert result.detections == (), result.to_dict()
+    [error] = result.errors
+    assert error.code is ErrorCode.LOW_CONFIDENCE
+    assert error.bbox is not None
+    assert "0.90" in error.message
+
+    clean = decode_image(render_value(1234), DecoderConfig(dpi=300.0, min_confidence=0.9))
+    assert clean.detections and clean.detections[0].value == 1234

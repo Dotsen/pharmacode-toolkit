@@ -43,8 +43,10 @@ Find and decode every Pharmacode in an image.
 | `--min-bars INT` | 2 | reject candidates with fewer bars than this (2..16) |
 | `--max-bars INT` | 16 | reject candidates with more bars than this (2..16) |
 | `--allow-cropped-quiet-zone` | off | turn a quiet zone cut by the image edge into a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION` (`DecoderConfig.allow_truncated_quiet_zone`); a violation on a side that is not touching the image border is still an error |
+| `--min-confidence FLOAT` | 0.0 | reject a decoded candidate whose confidence falls below this as a `LOW_CONFIDENCE` error instead of a detection (`DecoderConfig.min_confidence`); must be 0.0..1.0 |
 
 `--min-bars` and `--max-bars` must satisfy `2 <= min-bars <= max-bars <= 16`.
+`--min-confidence` must be between 0.0 and 1.0.
 
 ## `pharmacode benchmark`
 
@@ -114,10 +116,10 @@ A detection's `warnings` list holds zero or more of these strings:
 | code | name | meaning |
 |---|---|---|
 | 0 | `EXIT_OK` | every candidate in the image decoded successfully (at least one detection, no errors) |
-| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
+| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence`, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
 | 3 | `EXIT_INPUT` | an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
 | 4 | `EXIT_NO_CANDIDATES` | decoding ran but found no group of aligned bars at all (`NO_CANDIDATES`) |
-| 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation |
+| 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation, or was rejected as `LOW_CONFIDENCE` |
 | 6 | `EXIT_PARTIAL` | a mix: at least one candidate decoded successfully and at least one other failed |
 | 7 | `EXIT_BENCHMARK_FAILED` | benchmark gate failed: a condition fell below `--min-correct` or negatives exceeded `--max-false-positives` |
 

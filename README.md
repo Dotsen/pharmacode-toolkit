@@ -43,6 +43,7 @@ Requires Python 3.10 or newer. Runtime dependencies: numpy, opencv-python-headle
 pharmacode generate --value 12345 --dpi 300 --output sample.png
 pharmacode decode sample.png --dpi 300
 pharmacode decode sample.png --dpi 300 --json result.json --annotated result.png
+pharmacode decode sample.png --dpi 300 --min-confidence 0.8
 ```
 
 `python -m pharmacode ...` works the same as the `pharmacode` command above,

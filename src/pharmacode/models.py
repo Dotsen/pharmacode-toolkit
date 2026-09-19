@@ -32,6 +32,7 @@ class ErrorCode(str, Enum):
     QUIET_ZONE_VIOLATION = "QUIET_ZONE_VIOLATION"
     INCONSISTENT_BAR_HEIGHT = "INCONSISTENT_BAR_HEIGHT"
     INCONSISTENT_GAPS = "INCONSISTENT_GAPS"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
 
 
 @dataclass(frozen=True)
@@ -253,12 +254,20 @@ class DecoderConfig:
         1.5,
     )  # one printed gap width; 1.5x tolerates blur and low DPI rounding
     single_class_no_dpi_confidence_cap: float = 0.5
+    min_confidence: float = (
+        0.0  # detections below this confidence are reported as LOW_CONFIDENCE errors; 0
+        # keeps every decoded candidate
+    )
 
     def __post_init__(self) -> None:
         if not 2 <= self.min_bars <= self.max_bars <= 16:
             raise ValueError(
                 f"min_bars and max_bars must satisfy 2 <= min_bars <= max_bars <= 16, "
                 f"got min_bars={self.min_bars}, max_bars={self.max_bars}"
+            )
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError(
+                f"min_confidence must be between 0.0 and 1.0, got {self.min_confidence}"
             )
 
     def with_updates(self, **changes: Any) -> DecoderConfig:
