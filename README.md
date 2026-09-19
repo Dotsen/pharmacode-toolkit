@@ -69,8 +69,10 @@ reliable classification of codes that use a single bar width.
 ## Limitations
 
 See [docs/limitations.md](docs/limitations.md). In short: no inverted codes, no
-two-track or colour Pharmacode, no DPI from file metadata, thresholds validated on
-synthetic images only.
+two-track or colour Pharmacode, no DPI from file metadata. Thresholds come from the
+specification and a synthetic benchmark; the decoder was then checked by hand on a
+small set of publicly available sample images, but no scanned or photographed
+printed code has been tested.
 
 ## Documentation
 
