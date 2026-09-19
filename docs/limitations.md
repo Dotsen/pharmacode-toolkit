@@ -28,3 +28,8 @@
   benchmark this toolkit is synthetic (see [provenance.md](provenance.md));
   nothing here has been checked against a scanned or photographed printed
   code.
+- **A caption touching the bars with no white gap** is still measured as
+  part of the bar: `measure_heights`/`bar_profile` only skip ink that is
+  separated from the bars by a blank row, so touching ink is included and
+  the candidate is rejected (as an inconsistent height, or as a broken
+  group further upstream) rather than decoded as a wrong value.

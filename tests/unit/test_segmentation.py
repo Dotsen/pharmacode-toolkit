@@ -7,9 +7,11 @@ from pharmacode.encoding import encode
 from pharmacode.models import BarKind, BarSequence, DecodeError, DecoderConfig, ErrorCode
 from pharmacode.rendering import RenderSpec, render_bars, render_value
 from pharmacode.segmentation import (
+    _inked_block,
     bar_profile,
     classify_widths,
     extract_bars_from_upright,
+    measure_heights,
     measure_runs,
     runs_from_profile,
     validate_quiet_zone,
@@ -46,6 +48,29 @@ def test_bar_profile_uses_central_band() -> None:
     profile, rows = bar_profile(mask, 0.6)
     assert rows == (0, 17)
     assert profile[3] == 1.0 and profile[4] == 1.0 and profile[7] == 0.0
+
+
+def test_inked_block_finds_contiguous_run_around_reference() -> None:
+    row_ink = np.array([False, True, True, False, False, True, True, True])
+    assert _inked_block(row_ink, 2) == (1, 2)
+    assert _inked_block(row_ink, 6) == (5, 7)
+    # reference 3 is not inked itself: row 2 (distance 1) is nearer than row 5
+    # (distance 2), so its run (1, 2) wins.
+    assert _inked_block(row_ink, 3) == (1, 2)
+    assert _inked_block(np.zeros(8, dtype=bool), 4) == (0, -1)
+
+
+def test_inked_block_breaks_a_distance_tie_towards_the_lower_index() -> None:
+    row_ink = np.array([True, False, False, False, True])
+    assert _inked_block(row_ink, 2) == (0, 0)
+
+
+def test_measure_heights_ignores_a_disconnected_blob_below_the_bar() -> None:
+    mask = np.zeros((30, 10), dtype=np.uint8)
+    mask[5:15, 2:6] = 255  # the bar: rows 5-14, height 10
+    mask[20:26, 2:6] = 255  # a caption-like blob, separated by a white gap
+    heights = measure_heights(mask, [(2, 4)], 9)  # centre falls inside the bar
+    assert heights == [10]
 
 
 def test_classify_two_classes() -> None:

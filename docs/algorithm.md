@@ -106,7 +106,11 @@ For each candidate:
 7. **profile** — `segmentation.bar_profile` re-binarises that region and
    measures, column by column, the fraction of ink over the central band of
    the inked rows (`profile_band_fraction`), avoiding rounded corners and
-   edge noise at the very top and bottom of the bars.
+   edge noise at the very top and bottom of the bars; both this band and,
+   later, each bar's own height (`segmentation.measure_heights`) are taken
+   from the contiguous block of ink around the region's centre row, so a
+   caption sharing the candidate box but separated from the bars by a blank
+   row is not measured as part of them.
 8. **runs** — `segmentation.runs_from_profile` and `measure_runs` threshold
    the profile (`profile_threshold`) and run-length encode it into bar
    `(start, width)` pairs, inner gap widths, and the leading/trailing quiet

@@ -52,16 +52,39 @@ def _within_wide(width: float, wide_median: float, config: DecoderConfig) -> boo
     )
 
 
-def bar_profile(mask: np.ndarray, band_fraction: float) -> tuple[np.ndarray, tuple[int, int]]:
-    """Fraction of ink per column over the central band of the inked rows.
+def _inked_block(row_ink: np.ndarray, reference: int) -> tuple[int, int]:
+    """Return (top, bottom) of the contiguous run of True rows containing ``reference``.
 
-    Returns the profile and the ``(top, bottom)`` inked rows; an empty mask
-    gives an all-zero profile and rows ``(0, -1)``.
+    If ``reference`` itself is not inked, use the nearest inked row (ties
+    broken towards the lower index). Returns (0, -1) when nothing is inked.
     """
-    rows = np.flatnonzero(mask.any(axis=1))
-    if rows.size == 0:
+    inked = np.flatnonzero(row_ink)
+    if inked.size == 0:
+        return 0, -1
+    if not row_ink[reference]:
+        reference = int(inked[np.argmin(np.abs(inked - reference))])
+    top = bottom = reference
+    while top > 0 and row_ink[top - 1]:
+        top -= 1
+    while bottom < row_ink.size - 1 and row_ink[bottom + 1]:
+        bottom += 1
+    return top, bottom
+
+
+def bar_profile(mask: np.ndarray, band_fraction: float) -> tuple[np.ndarray, tuple[int, int]]:
+    """Fraction of ink per column over the central band of the bars' own ink block.
+
+    The block is the contiguous run of inked rows around the ROI's centre
+    row, which sits inside the bars because the candidate box is built
+    symmetrically around them; a caption separated from the bars by a white
+    gap falls outside it and is ignored. Returns the profile and the block's
+    ``(top, bottom)`` rows; an empty mask gives an all-zero profile and rows
+    ``(0, -1)``.
+    """
+    row_ink = mask.any(axis=1)
+    if not row_ink.any():
         return np.zeros(mask.shape[1], dtype=np.float32), (0, -1)
-    top, bottom = int(rows[0]), int(rows[-1])
+    top, bottom = _inked_block(row_ink, mask.shape[0] // 2)
     centre = (top + bottom) / 2.0
     half = max(1.0, (bottom - top + 1) * band_fraction / 2.0)
     y0 = max(top, int(round(centre - half)))
@@ -98,12 +121,19 @@ def measure_runs(runs: Sequence[Run]) -> tuple[list[tuple[int, int]], list[int],
     return bars, gaps, leading, trailing
 
 
-def measure_heights(mask: np.ndarray, bars: Sequence[tuple[int, int]]) -> list[int]:
-    """Vertical ink extent of each bar (rows where at least half of the bar's columns are ink)."""
+def measure_heights(mask: np.ndarray, bars: Sequence[tuple[int, int]], centre: int) -> list[int]:
+    """Vertical ink extent of each bar's own ink block around the band centre row.
+
+    A row counts as part of the bar when at least half of the bar's columns
+    are ink; the height is the contiguous run of such rows containing
+    ``centre`` (see :func:`_inked_block`), so a caption connected to the bar
+    only by ink outside that run — separated by a white gap — is not counted.
+    """
     heights: list[int] = []
     for start, width in bars:
-        rows = np.flatnonzero((mask[:, start : start + width] > 0).mean(axis=1) >= 0.5)
-        heights.append(int(rows[-1] - rows[0] + 1) if rows.size else 0)
+        rows = (mask[:, start : start + width] > 0).mean(axis=1) >= 0.5
+        top, bottom = _inked_block(rows, centre)
+        heights.append(bottom - top + 1)
     return heights
 
 
@@ -248,14 +278,14 @@ def validate_quiet_zone(
 
 
 def _sequence_from_mask(mask: np.ndarray, config: DecoderConfig) -> BarSequence | DecodeError:
-    profile, _ = bar_profile(mask, config.profile_band_fraction)
+    profile, (top, bottom) = bar_profile(mask, config.profile_band_fraction)
     runs = runs_from_profile(profile, config.profile_threshold)
     bars, gaps, leading, trailing = measure_runs(runs)
     count_error = check_bar_count(len(bars), config)
     if count_error is not None:
         return count_error
     widths = [width for _, width in bars]
-    heights = measure_heights(mask, bars)
+    heights = measure_heights(mask, bars, (top + bottom) // 2)
     shape = validate_shape(heights, gaps, config)
     if isinstance(shape, DecodeError):
         return shape
