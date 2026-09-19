@@ -56,10 +56,12 @@ def test_codes_separated_by_one_gap_are_rejected_not_merged() -> None:
     assert {e.code for e in result.errors} == {ErrorCode.INCONSISTENT_GAPS}
 
 
-def test_partial_overlap_with_text_line_fails_cleanly() -> None:
+def test_partial_overlap_with_a_thin_line_is_recovered_not_merged() -> None:
+    """A rule thin enough to qualify for the crossing-line fallback (see
+    detection.find_candidates and tests/vision/test_framing.py) decodes normally instead
+    of merging every bar into one rejected component."""
     code = render_value(1234)
     scene = code.copy()
     scene[code.shape[0] // 2 : code.shape[0] // 2 + 3, :] = 0  # a rule through the code
     result = decode_image(scene, DecoderConfig(dpi=300.0))
-    assert not result.detections
-    assert result.errors
+    assert single(result).value == 1234

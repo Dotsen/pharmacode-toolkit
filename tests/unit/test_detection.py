@@ -5,6 +5,7 @@ import pytest
 
 from pharmacode.detection import (
     candidate_from_chain,
+    estimate_stroke_px,
     find_bar_components,
     find_candidates,
     group_bars,
@@ -108,3 +109,41 @@ def test_find_candidates_on_blank_and_on_code() -> None:
     )
     assert find_candidates(flatten_background(noisy, 0.05), CONFIG) == []
     assert len(find_candidates(flatten_background(render_value(99), 0.05), CONFIG)) == 1
+
+
+def test_estimate_stroke_px_picks_the_thickest_bar_like_stroke() -> None:
+    mask = np.zeros((200, 200), np.uint8)
+    mask[20:180, 20:26] = 255  # 6 px bar
+    mask[20:180, 60:78] = 255  # 18 px bar
+    assert estimate_stroke_px(mask, CONFIG) == pytest.approx(18.0, abs=1.0)
+
+
+def test_estimate_stroke_px_ignores_a_blob_above_the_stroke_fraction() -> None:
+    # canvas large enough that a bar-shaped "blob" thicker than max_stroke_fraction of it
+    # (0.25 x 600 = 150 px) still keeps a legal aspect ratio (>= min_bar_aspect)
+    mask = np.zeros((600, 600), np.uint8)
+    mask[50:550, 50:56] = 255  # 6 px bar
+    mask[50:550, 150:168] = 255  # 18 px bar
+    mask[10:590, 300:460] = 255  # 160 px thick "blob": length 580, thickness 160, aspect 3.6
+    assert estimate_stroke_px(mask, CONFIG) == pytest.approx(18.0, abs=1.0)
+
+
+def test_estimate_stroke_px_on_empty_mask_is_none() -> None:
+    assert estimate_stroke_px(np.zeros((100, 100), np.uint8), CONFIG) is None
+
+
+def test_find_candidates_recovers_from_a_thin_crossing_line() -> None:
+    image = render_value(1234).copy()
+    mid = image.shape[0] // 2
+    image[mid : mid + 5, :] = 90  # thinner than crossing_line_max_px: removed by the fallback
+    assert find_bar_components(otsu_mask(image), CONFIG) == []  # the plain pass sees one blob
+    candidates = find_candidates(image, CONFIG)
+    assert len(candidates) == 1
+    assert len(candidates[0].bars) == len(encode(1234))
+
+
+def test_find_candidates_gives_up_on_a_thick_crossing_line() -> None:
+    image = render_value(1234).copy()
+    mid = image.shape[0] // 2
+    image[mid : mid + 12, :] = 90  # thicker than crossing_line_max_px: not removed
+    assert find_candidates(image, CONFIG) == []

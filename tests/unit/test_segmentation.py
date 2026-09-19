@@ -4,10 +4,18 @@ import numpy as np
 import pytest
 
 from pharmacode.encoding import encode
-from pharmacode.models import BarKind, BarSequence, DecodeError, DecoderConfig, ErrorCode
+from pharmacode.models import (
+    BarKind,
+    BarSequence,
+    BoundingBox,
+    DecodeError,
+    DecoderConfig,
+    ErrorCode,
+)
 from pharmacode.rendering import RenderSpec, render_bars, render_value
 from pharmacode.segmentation import (
     _inked_block,
+    _truncated_sides,
     bar_profile,
     classify_widths,
     extract_bars_from_upright,
@@ -63,6 +71,33 @@ def test_inked_block_finds_contiguous_run_around_reference() -> None:
 def test_inked_block_breaks_a_distance_tie_towards_the_lower_index() -> None:
     row_ink = np.array([True, False, False, False, True])
     assert _inked_block(row_ink, 2) == (0, 0)
+
+
+def test_truncated_sides_horizontal_uses_the_x_edges() -> None:
+    image_shape = (100, 200)
+    assert _truncated_sides(BoundingBox(0, 10, 50, 20), 0.0, image_shape) == (True, False)
+    assert _truncated_sides(BoundingBox(150, 10, 50, 20), 0.0, image_shape) == (False, True)
+
+
+def test_truncated_sides_positive_90_top_is_leading() -> None:
+    # orientation 90: reading runs top to bottom, so the top edge is leading.
+    image_shape = (100, 200)
+    assert _truncated_sides(BoundingBox(10, 0, 20, 50), 90.0, image_shape) == (True, False)
+    assert _truncated_sides(BoundingBox(10, 50, 20, 50), 90.0, image_shape) == (False, True)
+
+
+def test_truncated_sides_positive_60_top_is_leading() -> None:
+    image_shape = (100, 200)
+    assert _truncated_sides(BoundingBox(10, 0, 20, 50), 60.0, image_shape) == (True, False)
+    assert _truncated_sides(BoundingBox(10, 50, 20, 50), 60.0, image_shape) == (False, True)
+
+
+def test_truncated_sides_negative_60_bottom_is_leading() -> None:
+    # orientation -60: the canonical axis has uy < 0, so the leading (first-read) end
+    # is the BOTTOM of the image, not the top.
+    image_shape = (100, 200)
+    assert _truncated_sides(BoundingBox(10, 0, 20, 50), -60.0, image_shape) == (False, True)
+    assert _truncated_sides(BoundingBox(10, 50, 20, 50), -60.0, image_shape) == (True, False)
 
 
 def test_measure_heights_ignores_a_disconnected_blob_below_the_bar() -> None:
@@ -140,6 +175,26 @@ def test_validate_quiet_zone_with_and_without_dpi() -> None:
     assert "quiet_zone_below_nominal" in warnings and metrics["quiet_zone_margin"] < 1.0
     warnings, metrics = validate_quiet_zone(95, 95, [6, 18], (N, W), DecoderConfig(dpi=300.0))
     assert warnings == () and metrics["quiet_zone_margin"] == 1.0
+
+
+def test_validate_quiet_zone_truncated_flag_turns_a_violation_into_a_warning() -> None:
+    config = DecoderConfig(allow_truncated_quiet_zone=True)
+    outcome = validate_quiet_zone(5, 90, [6, 18], (N, W), config, truncated=(True, False))
+    assert not isinstance(outcome, DecodeError)
+    warnings, metrics = outcome
+    assert warnings == ("quiet_zone_truncated_by_image_edge",)
+    assert metrics["quiet_zone_margin"] < 1.0
+
+
+def test_validate_quiet_zone_truncated_side_still_errors_when_flag_is_off() -> None:
+    error = validate_quiet_zone(5, 90, [6, 18], (N, W), DecoderConfig(), truncated=(True, False))
+    assert isinstance(error, DecodeError) and error.code is ErrorCode.QUIET_ZONE_VIOLATION
+
+
+def test_validate_quiet_zone_flag_does_not_excuse_a_non_truncated_side() -> None:
+    config = DecoderConfig(allow_truncated_quiet_zone=True)
+    error = validate_quiet_zone(5, 90, [6, 18], (N, W), config, truncated=(False, False))
+    assert isinstance(error, DecodeError) and error.code is ErrorCode.QUIET_ZONE_VIOLATION
 
 
 def test_extract_bars_from_upright_clean_render() -> None:

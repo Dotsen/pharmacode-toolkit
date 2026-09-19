@@ -15,6 +15,7 @@ from pharmacode.imageops import otsu_mask, rotate_bound
 from pharmacode.models import (
     BarKind,
     BarSequence,
+    BoundingBox,
     DecodeError,
     DecoderConfig,
     DetectionCandidate,
@@ -252,8 +253,18 @@ def validate_quiet_zone(
     bar_widths: Sequence[int],
     kinds: Sequence[BarKind],
     config: DecoderConfig,
+    truncated: tuple[bool, bool] = (False, False),
 ) -> Outcome | DecodeError:
-    """Both ends need blank space: 6 mm nominal, half of that as the hard limit."""
+    """Both ends need blank space: 6 mm nominal, half of that as the hard limit.
+
+    ``truncated`` says whether the leading/trailing side of the candidate
+    touches the image border (see ``detection.extract_bars``). When the
+    smaller quiet zone is below the hard limit, ``config.allow_truncated_quiet_zone``
+    is set and that side is truncated, the violation is downgraded to a
+    ``quiet_zone_truncated_by_image_edge`` warning instead of an error — a
+    short quiet zone caused by real ink still inside the image, on a side
+    that is not truncated, is always an error.
+    """
     wide_widths = [w for w, k in zip(bar_widths, kinds, strict=True) if k is BarKind.WIDE]
     wide_px = (
         float(np.mean(wide_widths))
@@ -267,6 +278,12 @@ def validate_quiet_zone(
         nominal = config.quiet_zone_nominal_wide_ratio * wide_px
     smallest = min(leading, trailing)
     if smallest < hard:
+        side = 0 if leading <= trailing else 1
+        if config.allow_truncated_quiet_zone and truncated[side]:
+            return (
+                ("quiet_zone_truncated_by_image_edge",),
+                {"quiet_zone_margin": _clip01(smallest / nominal)},
+            )
         return DecodeError(
             ErrorCode.QUIET_ZONE_VIOLATION,
             f"quiet zone of {smallest} px is below the minimum {hard:.0f} px",
@@ -277,7 +294,9 @@ def validate_quiet_zone(
     return warnings, {"quiet_zone_margin": _clip01(smallest / nominal)}
 
 
-def _sequence_from_mask(mask: np.ndarray, config: DecoderConfig) -> BarSequence | DecodeError:
+def _sequence_from_mask(
+    mask: np.ndarray, config: DecoderConfig, truncated: tuple[bool, bool] = (False, False)
+) -> BarSequence | DecodeError:
     profile, (top, bottom) = bar_profile(mask, config.profile_band_fraction)
     runs = runs_from_profile(profile, config.profile_threshold)
     bars, gaps, leading, trailing = measure_runs(runs)
@@ -293,7 +312,7 @@ def _sequence_from_mask(mask: np.ndarray, config: DecoderConfig) -> BarSequence 
     if isinstance(classified, DecodeError):
         return classified
     kinds, class_warnings, class_metrics = classified
-    quiet = validate_quiet_zone(leading, trailing, widths, kinds, config)
+    quiet = validate_quiet_zone(leading, trailing, widths, kinds, config, truncated)
     if isinstance(quiet, DecodeError):
         return quiet
     return BarSequence(
@@ -309,7 +328,7 @@ def _sequence_from_mask(mask: np.ndarray, config: DecoderConfig) -> BarSequence 
 
 def extract_bars_from_upright(gray: np.ndarray, config: DecoderConfig) -> BarSequence | DecodeError:
     """Segment an image that contains one horizontal code with its quiet zones."""
-    return _sequence_from_mask(otsu_mask(gray), config)
+    return _sequence_from_mask(otsu_mask(gray), config, (False, False))
 
 
 def normalize_roi(gray: np.ndarray, candidate: DetectionCandidate) -> np.ndarray:
@@ -321,11 +340,38 @@ def normalize_roi(gray: np.ndarray, candidate: DetectionCandidate) -> np.ndarray
     return rotate_bound(roi, candidate.orientation_deg, 255)
 
 
+def _truncated_sides(
+    bbox: BoundingBox, orientation_deg: float, image_shape: tuple[int, ...]
+) -> tuple[bool, bool]:
+    """Which axis ends of the candidate touch the image border, as (leading, trailing).
+
+    The primary reading runs along the canonical axis: left to right for
+    |orientation| < 45, otherwise top to bottom when orientation is positive and
+    bottom to top when it is negative.
+    """
+    height, width = image_shape[:2]
+    if abs(orientation_deg) < 45:
+        return bbox.x == 0, bbox.x + bbox.width == width
+    top = bbox.y == 0
+    bottom = bbox.y + bbox.height == height
+    return (top, bottom) if orientation_deg > 0 else (bottom, top)
+
+
 def extract_bars(
-    gray: np.ndarray, candidate: DetectionCandidate, config: DecoderConfig
+    gray: np.ndarray,
+    candidate: DetectionCandidate,
+    config: DecoderConfig,
+    image_shape: tuple[int, ...],
 ) -> BarSequence | DecodeError:
-    """Segment one candidate; a failure is tagged with the candidate box."""
-    outcome = _sequence_from_mask(otsu_mask(normalize_roi(gray, candidate)), config)
+    """Segment one candidate; a failure is tagged with the candidate box.
+
+    ``image_shape`` is the shape of the full (unrotated) image the candidate
+    was found in, used only to tell whether the candidate's box touches the
+    image border on its leading or trailing side (see :func:`_truncated_sides`
+    and ``segmentation.validate_quiet_zone``).
+    """
+    truncated = _truncated_sides(candidate.bbox, candidate.orientation_deg, image_shape)
+    outcome = _sequence_from_mask(otsu_mask(normalize_roi(gray, candidate)), config, truncated)
     if isinstance(outcome, DecodeError):
         return DecodeError(outcome.code, outcome.message, candidate.bbox)
     return outcome

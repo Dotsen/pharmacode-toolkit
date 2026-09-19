@@ -33,3 +33,21 @@
   separated from the bars by a blank row, so touching ink is included and
   the candidate is rejected (as an inconsistent height, or as a broken
   group further upstream) rather than decoded as a wrong value.
+- **A quiet zone cut by the image edge is a `QUIET_ZONE_VIOLATION` by
+  default**, same as any other short quiet zone — a tightly cropped photo is
+  not distinguished from a genuinely too-close neighbour unless you ask for
+  that leniency explicitly. Pass `--allow-cropped-quiet-zone`
+  (`DecoderConfig.allow_truncated_quiet_zone`) to turn a violation on a side
+  that touches the image border into a `quiet_zone_truncated_by_image_edge`
+  warning instead; a short quiet zone caused by real ink still inside the
+  image is always an error, flag or not.
+- **A thin rule crossing only part of a code is not handled.** The
+  crossing-line fallback (`detection.find_candidates`) recovers a code whose
+  bars were all merged into one component by a rule running across the
+  whole group; a rule that only touches some of the bars, or several rules
+  of different thickness, are outside what it was built for.
+- **A two-bar code crossed by a rule is not recovered.** The crossing-line
+  fallback only accepts a recovered chain of `fallback_min_bars` (3) or more
+  bars: two isolated recovered strokes are exactly what a single text
+  glyph's own outline produces, so they are discarded rather than risking a
+  false code.

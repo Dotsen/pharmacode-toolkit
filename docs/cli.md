@@ -42,6 +42,7 @@ Find and decode every Pharmacode in an image.
 | `--annotated PATH` | none | also write an annotated copy of the image here |
 | `--min-bars INT` | 2 | reject candidates with fewer bars than this (2..16) |
 | `--max-bars INT` | 16 | reject candidates with more bars than this (2..16) |
+| `--allow-cropped-quiet-zone` | off | turn a quiet zone cut by the image edge into a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION` (`DecoderConfig.allow_truncated_quiet_zone`); a violation on a side that is not touching the image border is still an error |
 
 `--min-bars` and `--max-bars` must satisfy `2 <= min-bars <= max-bars <= 16`.
 
@@ -106,6 +107,7 @@ A detection's `warnings` list holds zero or more of these strings:
 | `single_width_class_no_dpi` | `single_width_class` above, and additionally no `--dpi` was given, so the boundary is the code's own median gap rather than a physical measurement in mm; confidence is capped at `single_class_no_dpi_confidence_cap` (0.5) |
 | `width_ratio_below_nominal` | two width classes were found and are each internally tight, but the wide/narrow ratio between their means is below 2.0 (nominal is 3.0), i.e. the split is real but narrower than the Laetus nominal ratio |
 | `quiet_zone_below_nominal` | the smaller of the leading/trailing quiet zone is at or above the hard minimum (so decoding still succeeds) but below the nominal quiet zone (6 mm with `--dpi`, else 4x the estimated wide bar width) |
+| `quiet_zone_truncated_by_image_edge` | `--allow-cropped-quiet-zone` was given, the smaller quiet zone is below the hard minimum, and that side of the candidate touches the image border — the violation is downgraded to this warning instead of `QUIET_ZONE_VIOLATION` (`segmentation.validate_quiet_zone`) |
 
 ## Exit codes
 

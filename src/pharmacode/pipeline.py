@@ -6,8 +6,8 @@ import cv2
 import numpy as np
 
 from pharmacode.decoding import decode_bars
-from pharmacode.detection import find_candidates
-from pharmacode.imageops import flatten_background
+from pharmacode.detection import estimate_stroke_px_past_crossing_lines, find_candidates
+from pharmacode.imageops import flatten_background, otsu_mask
 from pharmacode.models import (
     DecodedPharmacode,
     DecodeError,
@@ -29,9 +29,13 @@ def decode_image(
     if gray.size == 0:
         error = DecodeError(ErrorCode.NO_CANDIDATES, "image is empty")
         return DecodeResult(info, (), (error,))
-    min_kernel_px = 0
+    dpi_floor_px = 0
     if config.dpi is not None:
-        min_kernel_px = int(round(config.mm_to_px(config.background_kernel_min_mm)))
+        dpi_floor_px = int(round(config.mm_to_px(config.background_kernel_min_mm)))
+    raw_mask = otsu_mask(gray)
+    stroke = estimate_stroke_px_past_crossing_lines(raw_mask, config)
+    stroke_floor_px = int(config.background_kernel_stroke_factor * stroke) if stroke else 0
+    min_kernel_px = max(dpi_floor_px, stroke_floor_px)
     flat = flatten_background(gray, config.background_kernel_fraction, min_kernel_px)
     candidates = find_candidates(flat, config)
     if not candidates:
@@ -40,7 +44,7 @@ def decode_image(
     detections: list[DecodedPharmacode] = []
     errors: list[DecodeError] = []
     for candidate in candidates:
-        sequence = extract_bars(flat, candidate, config)
+        sequence = extract_bars(flat, candidate, config, gray.shape)
         if isinstance(sequence, DecodeError):
             errors.append(sequence)
             continue

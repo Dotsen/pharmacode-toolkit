@@ -46,6 +46,20 @@ def find_bar_components(mask: np.ndarray, config: DecoderConfig) -> list[BarRect
     return bars
 
 
+def estimate_stroke_px(mask: np.ndarray, config: DecoderConfig) -> float | None:
+    """Widest bar-like stroke in a raw ink mask, to size the background-flattening kernel.
+
+    Runs the same component fit as :func:`find_bar_components`, then discards
+    components thicker than ``max_stroke_fraction`` of the mask's longer side
+    (those are solid blobs, not bars) and returns the thickest survivor's
+    thickness, or ``None`` when nothing bar-like remains.
+    """
+    bars = find_bar_components(mask, config)
+    limit = config.max_stroke_fraction * max(mask.shape)
+    thicknesses = [bar.thickness for bar in bars if bar.thickness <= limit]
+    return max(thicknesses) if thicknesses else None
+
+
 def _split_chains(
     aligned: list[tuple[float, BarRect]], config: DecoderConfig
 ) -> list[list[BarRect]]:
@@ -176,8 +190,121 @@ def candidate_from_chain(
     )
 
 
+def _bbox_iou(a: BoundingBox, b: BoundingBox) -> float:
+    """Intersection over union of two axis-aligned boxes, 0.0 when they don't overlap."""
+    x0, y0 = max(a.x, b.x), max(a.y, b.y)
+    x1, y1 = min(a.x + a.width, b.x + b.width), min(a.y + a.height, b.y + b.height)
+    intersection = max(0, x1 - x0) * max(0, y1 - y0)
+    if intersection == 0:
+        return 0.0
+    union = a.width * a.height + b.width * b.height - intersection
+    return intersection / union if union > 0 else 0.0
+
+
+def _candidates_from_mask(
+    mask: np.ndarray, config: DecoderConfig, image_shape: tuple[int, ...]
+) -> list[DetectionCandidate]:
+    bars = find_bar_components(mask, config)
+    return [candidate_from_chain(chain, config, image_shape) for chain in group_bars(bars, config)]
+
+
+def _crossing_line_regions(mask: np.ndarray, config: DecoderConfig) -> np.ndarray:
+    """Bounding boxes of components shaped like several bars merged by one thin rule.
+
+    Several real bars joined edge-to-edge by a rule that also crosses the gaps
+    between them still form one long, thin component (it passes
+    ``min_bar_length_px`` and ``min_bar_aspect``, exactly like a real bar
+    would) but a sparse one (its ink covers less of that bounding box than
+    ``min_fill_ratio``, because the gaps are mostly blank except for the thin
+    rule) — that combination of "bar-shaped but under-filled" is what
+    distinguishes it from unrelated dense clutter (a filled grid of table
+    lines, disconnected text glyphs) that the fallback below must not
+    mistake for a barcode. Returns a mask blanked outside those boxes, so the
+    fallback only ever searches inside a region that already looks like a
+    candidate merge, never the whole image.
+    """
+    count, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    restricted = np.zeros_like(mask)
+    for index in range(1, count):
+        x, y, w, h, area = (int(v) for v in stats[index])
+        length, thickness = max(w, h), max(1, min(w, h))
+        if length < config.min_bar_length_px or length / thickness < config.min_bar_aspect:
+            continue
+        if area / (length * thickness) >= config.min_fill_ratio:
+            continue  # already dense enough to be a normal bar-shaped component
+        restricted[y : y + h, x : x + w] = mask[y : y + h, x : x + w]
+    return restricted
+
+
+def _opened_variants(mask: np.ndarray, config: DecoderConfig) -> list[np.ndarray]:
+    """Vertical- and horizontal-opened versions of the mask's crossing-line regions.
+
+    A vertical element preserves tall bars and erases a horizontal rule
+    thinner than it (and vice versa for a horizontal element); trying both
+    covers a crossing rule regardless of the code's own orientation.
+    """
+    restricted = _crossing_line_regions(mask, config)
+    if not restricted.any():
+        return []
+    span = config.crossing_line_max_px + 1
+    vertical = cv2.getStructuringElement(cv2.MORPH_RECT, (1, span))
+    horizontal = cv2.getStructuringElement(cv2.MORPH_RECT, (span, 1))
+    return [
+        cv2.morphologyEx(restricted, cv2.MORPH_OPEN, kernel) for kernel in (vertical, horizontal)
+    ]
+
+
+def estimate_stroke_px_past_crossing_lines(mask: np.ndarray, config: DecoderConfig) -> float | None:
+    """``estimate_stroke_px``, retried on the mask opened by :func:`_opened_variants`.
+
+    When a thin rule crosses every bar of a code, the raw mask holds no
+    isolated bar-shaped component for :func:`estimate_stroke_px` to measure
+    (they are all one low-fill blob) — the same problem :func:`find_candidates`
+    solves for detection. Reusing that opening here keeps the
+    background-flattening kernel (see ``pipeline.decode_image``) sized from
+    the true bar width even on an image that also needs the crossing-line
+    fallback.
+    """
+    stroke = estimate_stroke_px(mask, config)
+    if stroke is not None:
+        return stroke
+    candidates = [estimate_stroke_px(opened, config) for opened in _opened_variants(mask, config)]
+    thicknesses = [t for t in candidates if t is not None]
+    return max(thicknesses) if thicknesses else None
+
+
+def _crossing_line_fallback(
+    mask: np.ndarray, config: DecoderConfig, image_shape: tuple[int, ...]
+) -> list[DetectionCandidate]:
+    """Recover bars merged by a thin rule crossing them, by opening the mask lengthwise.
+
+    Only ``_crossing_line_regions`` of the mask are searched, so this cannot
+    turn unrelated dense ink (a table grid, disconnected text) into a false
+    code.
+    """
+    candidates: list[DetectionCandidate] = []
+    for opened in _opened_variants(mask, config):
+        for candidate in _candidates_from_mask(opened, config, image_shape):
+            # a 2-bar chain can never fail _split_chains' own spacing test (with a single
+            # inter-bar gap, that gap is always "the smallest", so it is always <= itself):
+            # two isolated recovered strokes are far weaker evidence of a real merge than
+            # a longer run, and are exactly what a single text glyph's own outline produces.
+            if len(candidate.bars) < config.fallback_min_bars:
+                continue
+            if not any(_bbox_iou(candidate.bbox, kept.bbox) > 0.5 for kept in candidates):
+                candidates.append(candidate)
+    return candidates
+
+
 def find_candidates(flat_gray: np.ndarray, config: DecoderConfig) -> list[DetectionCandidate]:
-    """Run binarisation, component filtering and grouping on a background-flattened image."""
+    """Run binarisation, component filtering and grouping on a background-flattened image.
+
+    If that plain pass finds nothing, two more passes try to recover a code
+    whose bars were merged into one component by a thin rule crossing all of
+    them (see :func:`_crossing_line_fallback`); this fallback only runs when
+    the plain pass is empty, so it never changes the result of an image that
+    already decodes.
+    """
     mask = otsu_mask(flat_gray)
     ink = mask > 0
     if not ink.any() or ink.all():
@@ -185,7 +312,7 @@ def find_candidates(flat_gray: np.ndarray, config: DecoderConfig) -> list[Detect
     contrast = float(flat_gray[~ink].mean()) - float(flat_gray[ink].mean())
     if contrast < config.min_contrast:
         return []
-    bars = find_bar_components(mask, config)
-    return [
-        candidate_from_chain(chain, config, flat_gray.shape) for chain in group_bars(bars, config)
-    ]
+    candidates = _candidates_from_mask(mask, config, flat_gray.shape)
+    if candidates:
+        return candidates
+    return _crossing_line_fallback(mask, config, flat_gray.shape)

@@ -81,7 +81,23 @@ selects the miniature column, the default is standard.
    calling the library; callers passing an array directly skip it).
 2. **flatten background** — `imageops.flatten_background` divides the image
    by a morphological-closing estimate of the paper, removing illumination
-   gradients and uneven lighting so ink reads as near-black everywhere.
+   gradients and uneven lighting so ink reads as near-black everywhere. The
+   closing kernel must be larger than every bar in the image or it fails to
+   erase them from the paper estimate, so `pipeline.decode_image` sizes it
+   from the image itself before flattening: `detection.estimate_stroke_px`
+   measures the thickest bar-like stroke of the raw (unflattened) ink mask,
+   and the kernel is set to `background_kernel_stroke_factor` (3x) that
+   stroke, on top of the existing image-fraction (`background_kernel_fraction`)
+   and DPI-based (`background_kernel_min_mm`) floors. Without this, a code
+   whose bars are wide relative to the image (filling the frame, as in a
+   tightly cropped photo) can have its bars only partly erased, leaving
+   their edges as spurious ink once the image is normalised — read as a
+   plausible but wrong sequence of thin bars instead of the real ones. When
+   a thin rule crosses every bar, the raw mask holds no isolated bar-shaped
+   component to measure either; `detection.estimate_stroke_px_past_crossing_lines`
+   retries the same measurement on the mask opened lengthwise (step 5's
+   crossing-line fallback), so the kernel is still sized from the true bar
+   width on such an image.
 3. **binarise** — `imageops.otsu_mask`, applied to the flattened image inside
    `find_candidates`, produces a 0/255 ink mask with Otsu's threshold; images
    with too little ink/paper contrast (`min_contrast`) are rejected here with
@@ -96,7 +112,19 @@ selects the miniature column, the default is standard.
    consecutive bars jumps past a legal gap (`max_angle_diff_deg`,
    `max_length_ratio`, `max_axis_offset_ratio`, `max_spacing_factor`,
    `max_spacing_length_ratio`); each surviving chain of two or more bars
-   becomes a `DetectionCandidate` with a bounding box and an orientation.
+   becomes a `DetectionCandidate` with a bounding box and an orientation. If
+   this plain pass finds no candidate at all, `find_candidates` tries once
+   more: a rule crossing every bar of a code joins them into one connected
+   component that fails the bar-component filters above (too little of its
+   bounding box is ink), so two more passes open the ink mask lengthwise —
+   with a tall, one-pixel-wide element and a wide, one-pixel-tall element
+   (`crossing_line_max_px`) — which erases a rule up to that thick wherever
+   it is not already covering a bar, splitting the bars back apart while
+   leaving a thicker rule (or unrelated dense ink, such as a table grid or
+   text) untouched. This fallback only searches components that already look
+   bar-shaped but suspiciously under-filled, and only recovers chains of
+   `fallback_min_bars` (3) or more bars, so it cannot turn ordinary clutter
+   into a false code.
 
 For each candidate:
 
@@ -121,7 +149,14 @@ For each candidate:
    testing each bar against the resulting class medians (see below);
    `validate_shape` checks bar-height and gap-width consistency on the raw
    runs just before this, and `validate_quiet_zone` checks the quiet zones
-   just after, once the wide bars are known.
+   just after, once the wide bars are known. By default a quiet zone below
+   the hard limit is always `QUIET_ZONE_VIOLATION`; if the caller opted in
+   with `allow_truncated_quiet_zone` (`--allow-cropped-quiet-zone`) and the
+   short side is one where the candidate's box touches the image border
+   (`segmentation.extract_bars` derives this from the candidate's bbox and
+   orientation), the violation becomes a `quiet_zone_truncated_by_image_edge`
+   warning instead — a short quiet zone caused by ink still inside the
+   image, on a side that is not touching the border, is always an error.
 10. **validate** — the three checks above (`validate_shape` twice, for height
     and gaps, and `validate_quiet_zone`) each either pass and record a
     confidence margin, or fail with `INCONSISTENT_BAR_HEIGHT`,
@@ -167,6 +202,8 @@ where the number comes from:
 | `max_bars` | 16 | format maximum bar count |
 | `background_kernel_fraction` | 0.05 | closing kernel = 5% of the image's longer side |
 | `background_kernel_min_mm` | 3.2 mm | absolute floor for the closing kernel, applied when DPI is known: the kernel must exceed the widest legal bar (wide tolerance up to 2.5 mm) so it fully erases every bar from the background estimate; a code's height is a fixed ~24 mm (8 mm bars plus two 8 mm margins), so for a short, few-bar code 5% of the image's longer side (its height) can be narrower than even a nominal 1.5 mm wide bar — 3.2 mm clears the 2.5 mm tolerance limit with margin while staying below the span of a run of several same-class bars |
+| `background_kernel_stroke_factor` | 3.0 | the closing kernel must exceed the widest bar; the kernel floor is set to 3x the thickest bar-like stroke measured on the raw (unflattened) mask by `detection.estimate_stroke_px`, so a code whose bars are wide relative to the image (filling the frame) still gets a kernel bigger than them, regardless of DPI or the image-fraction floor |
+| `max_stroke_fraction` | 0.25 | strokes thicker than a quarter of the image's longer side are blobs, not bars, and are ignored by `estimate_stroke_px` |
 | `min_bar_length_px` | 8 px | discards specks; an 8 mm bar is already >= 47 px at 150 DPI |
 | `min_bar_aspect` | 2.5 | height 8 mm / wide bar 2.5 mm = 3.2 at tolerance limits; non-uniform scaling (1.3 x 0.7) can lower a wide bar's aspect to 2.75, and Laetus allows 5 mm bars on labels (aspect 2) |
 | `min_fill_ratio` | 0.6 | bars are solid rectangles (fill 1.0); two real narrow bars from `encode(12345)` under harsh degradation (blur 1.5, noise sigma 20, contrast 0.6, JPEG 40) measured fill 0.657 and 0.674 — 0.6 keeps them with a small margin while an outline glyph (a 1 px border plus a diagonal) stays far below it |
@@ -176,6 +213,8 @@ where the number comes from:
 | `max_axis_offset_ratio` | 0.25 | bar centres lie on one axis, relative to bar length |
 | `max_spacing_factor` | 3.0 | legal in-code gaps vary at most 2.8x; separate codes are placed at least 4.8x a gap apart |
 | `max_spacing_length_ratio` | 1.0 | a gap between bars of one code never exceeds the bar height in practice |
+| `crossing_line_max_px` | 8 px | the crossing-line fallback (see section 3, step 5) opens the mask with a `(1, 9)` and a `(9, 1)` element, removing a rule up to this thick that crosses the bars |
+| `fallback_min_bars` | 3 | a chain recovered only by the crossing-line fallback's directional opening needs three bars; two strokes are what a single glyph's own outline yields, so a 2-bar recovered chain is discarded rather than risking a false code |
 | `profile_band_fraction` | 0.6 | central band of the bar height used to build the ink profile |
 | `profile_threshold` | 0.5 | ink-fraction threshold that turns the profile into bar/gap runs |
 | `width_split_ratio` | 1.5 | nominal wide/narrow ratio is 3; below 1.5 the widths are treated as one class instead of split |
@@ -187,6 +226,7 @@ where the number comes from:
 | `quiet_zone_nominal_mm` | 6.0 mm | Laetus nominal quiet zone (section 2.2.1) |
 | `quiet_zone_hard_wide_ratio` | 2.0 | without DPI, the hard quiet-zone limit as a multiple of the code's mean wide-bar width (6 mm / 2.5 mm max wide tolerance = 2.4) |
 | `quiet_zone_nominal_wide_ratio` | 4.0 | without DPI, the nominal quiet zone as a multiple of the mean wide-bar width (6 mm / 1.5 mm nominal wide) |
+| `allow_truncated_quiet_zone` | `False` | opt-in (`--allow-cropped-quiet-zone`): when a candidate touches the image border, a short quiet zone on that side becomes a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION`; a short zone on a side that is not touching the border is always an error |
 | `max_height_deviation` | 0.20 | bars of one code share one height, within 20% of the median |
 | `gap_ratio_range` | (0.6, 1.5) | one code's printed gaps should be close to one width; the 1.5x upper tolerance absorbs blur and low-DPI rounding |
 | `single_class_no_dpi_confidence_cap` | 0.5 | ceiling on the width-margin (and so overall) confidence for a single-width-class code classified without DPI, since a gap-based ruler has no absolute scale |

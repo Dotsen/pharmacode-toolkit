@@ -64,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
     decode.add_argument("--annotated", default=None, help="write an annotated image here")
     decode.add_argument("--min-bars", type=int, default=2)
     decode.add_argument("--max-bars", type=int, default=16)
+    decode.add_argument(
+        "--allow-cropped-quiet-zone",
+        action="store_true",
+        help="treat a quiet zone cut by the image edge as a warning instead of "
+        "QUIET_ZONE_VIOLATION",
+    )
     decode.set_defaults(handler=run_decode)
 
     benchmark = commands.add_parser("benchmark", help="run the synthetic benchmark matrix")
@@ -145,7 +151,12 @@ def run_decode(args: argparse.Namespace) -> int:
         image = load_image(args.input)
     except InputError as exc:
         return _fail(str(exc), EXIT_INPUT)
-    config = DecoderConfig(dpi=args.dpi, min_bars=args.min_bars, max_bars=args.max_bars)
+    config = DecoderConfig(
+        dpi=args.dpi,
+        min_bars=args.min_bars,
+        max_bars=args.max_bars,
+        allow_truncated_quiet_zone=args.allow_cropped_quiet_zone,
+    )
     result = decode_image(image, config, path=str(args.input))
     payload = json.dumps(result.to_dict(), indent=2)
     if args.json:

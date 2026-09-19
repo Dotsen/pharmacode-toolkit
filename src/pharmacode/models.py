@@ -193,6 +193,12 @@ class DecoderConfig:
     # bigger, image-size-relative kernel washes those runs out wholesale
     # instead of just erasing individual bars).
     background_kernel_min_mm: float = 3.2
+    # the closing kernel must exceed the widest bar; 3 x the thickest bar-like stroke of
+    # the raw mask (see detection.estimate_stroke_px)
+    background_kernel_stroke_factor: float = 3.0
+    # strokes thicker than a quarter of the image are blobs, not bars, and are ignored
+    # for the stroke estimate above
+    max_stroke_fraction: float = 0.25
     min_bar_length_px: int = 8  # discard specks; 8 mm bars are >= 47 px even at 150 DPI
     # height 8 mm / wide 2.5 mm = 3.2 at tolerance limits; non-uniform scaling (1.3 x 0.7)
     # lowers a wide bar to 2.75, Laetus allows 5 mm bars on labels (aspect 2)
@@ -213,6 +219,13 @@ class DecoderConfig:
     max_axis_offset_ratio: float = 0.25  # centres lie on one axis, relative to bar length
     max_spacing_factor: float = 3.0  # legal gaps vary <= 2.8 x; codes are >= 4.8 x a gap apart
     max_spacing_length_ratio: float = 1.0  # a gap never exceeds the bar height in practice
+    # fallback passes open the mask with a (1 x 9) and a (9 x 1) element, removing rules up
+    # to 8 px thick that cross the bars
+    crossing_line_max_px: int = 8
+    fallback_min_bars: int = (
+        3  # a chain recovered only by directional opening needs three bars; two
+        # strokes are what a glyph outline yields
+    )
     # segmentation
     profile_band_fraction: float = 0.6  # central band of the bar height used for the profile
     profile_threshold: float = 0.5
@@ -231,6 +244,9 @@ class DecoderConfig:
     quiet_zone_nominal_mm: float = 6.0
     quiet_zone_hard_wide_ratio: float = 2.0  # without DPI: 6 mm / 2.5 mm max wide = 2.4
     quiet_zone_nominal_wide_ratio: float = 4.0  # 6 mm / 1.5 mm
+    # when a candidate touches the image border, a short quiet zone on that side becomes a
+    # warning instead of QUIET_ZONE_VIOLATION
+    allow_truncated_quiet_zone: bool = False
     max_height_deviation: float = 0.20  # bars of one code share one height
     gap_ratio_range: tuple[float, float] = (
         0.6,
