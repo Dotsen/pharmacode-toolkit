@@ -34,6 +34,10 @@ dev = ["pytest>=8", "ruff>=0.5", "build>=1.2"]
 pharmacode = "pharmacode.cli:main"
 
 [project.urls]
+Homepage = "https://github.com/Dotsen/pharmacode-toolkit"
+Repository = "https://github.com/Dotsen/pharmacode-toolkit"
+Issues = "https://github.com/Dotsen/pharmacode-toolkit/issues"
+Changelog = "https://github.com/Dotsen/pharmacode-toolkit/blob/main/CHANGELOG.md"
 Author = "https://www.linkedin.com/in/dotsen/"
 
 [tool.hatch.version]
