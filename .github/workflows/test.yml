@@ -16,8 +16,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
       - name: Install
@@ -30,7 +30,7 @@ jobs:
         run: pharmacode benchmark --seed 20260919 --output benchmark-output --quick
       - name: Upload benchmark failures
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-failures-${{ matrix.os }}-py${{ matrix.python }}
           path: benchmark-output/failures
@@ -43,8 +43,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Build wheel
@@ -58,7 +58,7 @@ jobs:
           "$PY" -m pharmacode generate --value 12345 --dpi 300 --output smoke.png
           "$PY" -m pharmacode decode smoke.png --dpi 300 --json smoke.json
           "$PY" -c "import json; d = json.load(open('smoke.json')); assert d['detections'][0]['value'] == 12345, d"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.os }}
           path: dist/*.whl

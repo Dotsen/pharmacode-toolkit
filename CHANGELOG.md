@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-09-20
+
+- Documentation describes the real-world sample check made before each release.
+- README renders on PyPI: absolute image and documentation links, `pip install pharmacode-toolkit`.
+- Releases are published to PyPI by a tag-triggered workflow using trusted publishing.
+- CI actions updated to their current major versions.
+
 ## 0.2.0 - 2026-09-19
 
 Fixes and options that came out of checking the decoder on publicly available

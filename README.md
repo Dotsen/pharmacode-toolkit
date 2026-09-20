@@ -3,7 +3,7 @@
 Generate, detect and decode one-track [Pharmacode](https://en.wikipedia.org/wiki/Pharmacode)
 barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
 
-![Three codes found and annotated](examples/annotated/three_codes_scanned.jpg)
+![Three codes found and annotated](https://raw.githubusercontent.com/Dotsen/pharmacode-toolkit/main/examples/annotated/three_codes_scanned.jpg)
 
 ```json
 {
@@ -32,10 +32,12 @@ barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
 ## Install
 
 ```bash
-pip install .
+pip install pharmacode-toolkit
 ```
 
-Requires Python 3.10 or newer. Runtime dependencies: numpy, opencv-python-headless.
+From a clone of the repository: `pip install .` (or `pip install -e .[dev]` for
+development). Requires Python 3.10 or newer. Runtime dependencies: numpy,
+opencv-python-headless.
 
 ## Quick start
 
@@ -68,7 +70,7 @@ reliable classification of codes that use a single bar width.
 
 ## Limitations
 
-See [docs/limitations.md](docs/limitations.md). In short: no inverted codes, no
+See [docs/limitations.md](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/limitations.md). In short: no inverted codes, no
 two-track or colour Pharmacode, no DPI from file metadata. Thresholds come from the
 specification and a synthetic benchmark; on top of that the decoder is checked
 against real-world sample images (codes as they appear in the wild: with captions,
@@ -76,10 +78,11 @@ tightly cropped, with a rule drawn across the bars, inside a chart of symbologie
 
 ## Documentation
 
-- [Algorithm and threshold provenance](docs/algorithm.md)
-- [Command line and exit codes](docs/cli.md)
-- [Benchmark](docs/benchmark.md)
-- [Provenance](docs/provenance.md)
+- [Algorithm and threshold provenance](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/algorithm.md)
+- [Command line and exit codes](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/cli.md)
+- [Benchmark](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/benchmark.md)
+- [Provenance](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/provenance.md)
+- [Changelog](https://github.com/Dotsen/pharmacode-toolkit/blob/main/CHANGELOG.md)
 
 ## Disclaimer
 
@@ -93,4 +96,4 @@ Konstantin Dotsenko ([LinkedIn](https://www.linkedin.com/in/dotsen/)).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](https://github.com/Dotsen/pharmacode-toolkit/blob/main/LICENSE).
