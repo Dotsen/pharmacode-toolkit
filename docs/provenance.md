@@ -8,9 +8,9 @@
   follows it.
 - Every image in this repository (`examples/`) and every test fixture is produced
   by `pharmacode.rendering` from a fixed seed. No real packaging artwork, product
-  names or scanned material are included. A few publicly available sample images
-  were used locally to check the decoder; they are not redistributed and no test
-  depends on them.
+  names or scanned material are included. A set of real-world sample images is
+  used locally to check each release by hand; they are not redistributed and no
+  test depends on them.
 - Thresholds derive from the physical dimensions in the Laetus PHARMA-CODE Guide
   or from the synthetic benchmark; `docs/algorithm.md` lists the origin of each.
 

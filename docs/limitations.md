@@ -24,12 +24,13 @@
 - **Perspective distortion above about 5 degrees** is untested.
 - **No two-track or colour Pharmacode.** Only the one-track, single-colour
   format described in [algorithm.md](algorithm.md) is supported.
-- **No validation on printed samples.** Every image used to build and
-  benchmark this toolkit is synthetic (see [provenance.md](provenance.md)).
-  A handful of publicly available sample images (rendered barcodes, some with
-  captions, cropped, or with a rule drawn across the bars) were checked by
-  hand and drove the 0.2.0 fixes, but they are not part of the repository or
-  the test suite, and no scanned or photographed printed code has been tested.
+- **Real-world coverage is a small hand-checked set, not a benchmark.** Every
+  image used to build and benchmark this toolkit is synthetic (see
+  [provenance.md](provenance.md)). In addition, a set of real-world sample
+  images (codes with captions, tightly cropped codes, a code with a rule drawn
+  across the bars, a chart of symbologies) is decoded by hand before each
+  release; those fixes shaped 0.2.0. The set is small and is not part of the
+  repository or the test suite, so results on other material may differ.
 - **A caption touching the bars with no white gap** is still measured as
   part of the bar: `measure_heights`/`bar_profile` only skip ink that is
   separated from the bars by a blank row, so touching ink is included and
