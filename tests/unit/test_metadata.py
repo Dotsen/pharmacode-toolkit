@@ -9,6 +9,7 @@ import pytest
 
 from pharmacode.io import save_image
 from pharmacode.metadata import (
+    MAX_TRUSTED_DPI,
     MIN_TRUSTED_DPI,
     Resolution,
     read_resolution,
@@ -178,3 +179,12 @@ def test_malformed_files_have_no_resolution(data: bytes) -> None:
 def test_read_resolution_of_a_missing_file_raises(tmp_path: Path) -> None:
     with pytest.raises(OSError):
         read_resolution(tmp_path / "missing.png")
+
+
+def test_implausibly_high_resolutions_are_ignored() -> None:
+    png = with_resolution(cv2.imencode(".png", BLANK)[1].tobytes(), ".png", (1e8, 1e8))
+    resolution = resolution_from_bytes(png)
+    assert MAX_TRUSTED_DPI < 1e8
+    assert resolution.dpi is None and "above" in (resolution.note or "")
+    at_limit = with_resolution(cv2.imencode(".png", BLANK)[1].tobytes(), ".png", (4800, 4800))
+    assert resolution_from_bytes(at_limit).dpi == 4800.0

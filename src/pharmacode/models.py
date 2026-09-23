@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any
@@ -313,6 +314,8 @@ class DecoderConfig:
     )
 
     def __post_init__(self) -> None:
+        if self.dpi is not None and not (math.isfinite(self.dpi) and self.dpi > 0):
+            raise ValueError(f"dpi must be a positive number, got {self.dpi}")
         if not 2 <= self.min_bars <= self.max_bars <= 16:
             raise ValueError(
                 f"min_bars and max_bars must satisfy 2 <= min_bars <= max_bars <= 16, "

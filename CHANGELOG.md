@@ -12,7 +12,8 @@
   ends the quiet zone instead of being read as one more bar.
 - `decode --dpi auto` (`decode_file(..., auto_dpi=True)`, `read_resolution`) takes the DPI
   from PNG `pHYs`, JPEG JFIF/EXIF or TIFF metadata; it ignores camera photos, values below
-  100 DPI and unequal horizontal/vertical resolutions. The JSON `image` reports `dpi_source`.
+  100 or above 4800 DPI and unequal horizontal/vertical resolutions. The JSON `image`
+  reports `dpi_source`.
 - `generate` stores the DPI in the image file; `save_image` takes an optional `dpi`.
 - `decode --expect VALUE` exits 0 only when a detection reads that value in either direction,
   else 8 (`EXIT_EXPECTATION_FAILED`), and adds an `expected` block to the JSON
@@ -27,6 +28,10 @@
   intermediate images, a panel per candidate with its ink profile, and `debug.json`.
 - `generate --output code.svg` (`render_svg`) writes the code as a vector in exact millimetres,
   standard or `--miniature`, for printing at physical size.
+- A `--dpi` (or `DecoderConfig.dpi`) that is not a positive finite number is rejected; `nan` and
+  `inf` used to crash the decoder.
+- `save_image` reports a failed write (permission denied, a directory in the way, a full disk)
+  as `InputError`, so `generate` and `decode --annotated` exit 3 instead of with a traceback.
 - Benchmark: a `patch` group (`inverted-auto`, `knockout-dark`), and every negative image is
   also decoded inverted, with `polarity="auto"`.
 

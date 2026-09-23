@@ -224,7 +224,7 @@ def run_benchmark(seed: int, output_dir: str | Path, quick: bool = False) -> dic
     report["negatives"] = {
         "images": 2 * negative_count,
         "false_positives": len(false_positives),
-        "false_positive_rate": len(false_positives) / negative_count,
+        "false_positive_rate": len(false_positives) / (2 * negative_count),
         "cases": false_positives,
     }
     (output / "results.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

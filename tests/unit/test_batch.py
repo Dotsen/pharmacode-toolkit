@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from pharmacode import batch
 from pharmacode.batch import BatchOptions, collect_inputs, iter_batch
 from pharmacode.cli import (
     EXIT_BATCH_FAILURES,
@@ -143,3 +144,34 @@ def test_batch_unwritable_jsonl_is_an_input_error(tmp_path: Path) -> None:
     files = _images(tmp_path)
     target = tmp_path / "missing-dir" / "out.jsonl"
     assert main(["batch", str(files["a"]), "--jsonl", str(target)]) == EXIT_INPUT
+
+
+def test_batch_records_an_unexpected_failure_and_goes_on(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    files = _images(tmp_path)
+    real = batch.load_and_decode
+
+    def flaky(path, *args, **kwargs):
+        if Path(path) == files["b"]:
+            raise RuntimeError("boom")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(batch, "load_and_decode", flaky)
+    paths = [str(files["a"]), str(files["b"]), str(files["nested"])]
+    assert main(["batch", *paths]) == EXIT_BATCH_FAILURES
+    first, second, third = _records(capsys.readouterr().out)
+    assert second["exception"] == "RuntimeError: boom" and second["exit_code"] == 1
+    assert second["errors"] == []
+    assert first["exit_code"] == third["exit_code"] == EXIT_OK
+
+
+def test_batch_annotated_write_failure_stays_with_its_image(tmp_path: Path, capsys) -> None:
+    files = _images(tmp_path / "in")
+    annotated = tmp_path / "annotated"
+    (annotated / "0000-a.png").mkdir(parents=True)
+    args = ["batch", str(files["a"]), str(files["b"]), "--annotated-dir", str(annotated)]
+    assert main(args) == EXIT_BATCH_FAILURES
+    first, second = _records(capsys.readouterr().out)
+    assert first["exit_code"] == EXIT_INPUT and "annotated" not in first
+    assert second["exit_code"] == EXIT_OK and Path(second["annotated"]).is_file()

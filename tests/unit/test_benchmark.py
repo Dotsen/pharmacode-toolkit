@@ -46,7 +46,9 @@ def test_quick_benchmark_writes_reports(tmp_path: Path) -> None:
     saved = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
     assert saved["seed"] == 20260919 and saved["environment"]["opencv"]
     assert saved["conditions"]["clean-300"]["correct_rate"] == 1.0
-    assert 0.0 <= saved["negatives"]["false_positive_rate"] <= 1.0
+    negatives = saved["negatives"]
+    assert negatives["images"] == 80  # 40 rendered, each also decoded inverted
+    assert negatives["false_positive_rate"] == negatives["false_positives"] / negatives["images"]
     assert "| condition |" in render_markdown(report)
 
 

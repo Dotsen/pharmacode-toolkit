@@ -59,7 +59,6 @@ Find and decode every Pharmacode in an image.
 | `--allow-cropped-quiet-zone` | off | turn a quiet zone cut by the image edge into a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION` (`DecoderConfig.allow_truncated_quiet_zone`); a violation on a side that is not touching the image border is still an error |
 | `--polarity {dark,light,auto}` | `dark` | `dark`: dark bars on a light background; `light`: light bars on a dark background; `auto`: the dark pass, then the light pass only if the dark one decoded nothing (`DecoderConfig.polarity`, see [algorithm.md](algorithm.md#3-pipeline)) |
 | `--min-confidence FLOAT` | 0.0 | reject a decoded candidate whose confidence falls below this as a `LOW_CONFIDENCE` error instead of a detection (`DecoderConfig.min_confidence`); must be 0.0..1.0 |
-
 | `--expect INT` | none | verification: exit 0 if a detection reads this value in either direction (`value` or `mirror_value`), exit 8 otherwise, whatever else the image holds; adds an [`expected`](#verification-with---expect) block to the JSON; must be 3..131070 |
 | `--report-geometry` | off | add a [`geometry`](#geometry-report) block to every detection: measured sizes in px and, with a DPI, in mm against the Laetus tolerances |
 
@@ -84,6 +83,8 @@ The value is ignored — and `note:` on stderr says why — when:
 - it is below 100 DPI: there a nominal 0.5 mm narrow bar is under 2 px,
   which the decoder does not support, so the value is a software default
   (72 or 96 DPI) rather than a scan resolution;
+- it is above 4800 DPI, more than a flatbed scanner resolves optically (and
+  enough, for a corrupt or hostile file, to exhaust memory);
 - the horizontal and vertical resolutions differ by more than 1%.
 
 So `auto` suits scans and generated images. For a photo, measure the
@@ -139,12 +140,17 @@ as soon as it and every record before it are done.
 Each line is the `decode` JSON result for one image (on one line), plus:
 
 - `exit_code` — what `decode` with the same options would have exited
-  with for this image (0, 3, 4, 5, 6 or 8);
+  with for this image (0, 3, 4, 5, 6 or 8; 1 for an unexpected failure);
 - `annotated`, `debug` — paths written for this image, when asked for.
 
 An image that cannot be read still gets a line: `image.width`,
 `image.height` and `image.dpi` are `null`, `detections` is empty, `errors`
-holds one `INPUT_UNREADABLE`, and `exit_code` is 3. The batch goes on.
+holds one `INPUT_UNREADABLE`, and `exit_code` is 3. An image whose
+annotated copy or debug output cannot be written keeps its result, with
+`exit_code` 3. An unexpected failure while decoding one image (a defect,
+which should be reported) gives the same empty line with `errors` empty,
+an `exception` field (`"TypeName: message"`) and `exit_code` 1. In every
+case the batch goes on.
 
 The CSV has the columns `path`, `exit_code`, `dpi`, `dpi_source`,
 `detections` (count), `values`, `mirror_values`, `confidences`, `errors`
@@ -252,10 +258,10 @@ Python) adds to every detection:
 
 ```json
 "geometry": {
-  "bar_widths_px": [6, 6, 18], "gap_widths_px": [12, 12],
+  "bar_widths_px": [6, 6, 33], "gap_widths_px": [12, 12],
   "bar_height_px": 94, "quiet_zone_px": [84, 83],
   "pixel_mm": 0.085,
-  "bar_widths_mm": [0.508, 0.508, 1.524], "gap_widths_mm": [1.016, 1.016],
+  "bar_widths_mm": [0.508, 0.508, 2.794], "gap_widths_mm": [1.016, 1.016],
   "bar_height_mm": 7.959, "quiet_zone_mm": [7.112, 7.027],
   "variant": "standard",
   "out_of_tolerance": [
@@ -284,8 +290,8 @@ quiet zone is measured only as far as the candidate window reaches (7 to
 | code | name | meaning |
 |---|---|---|
 | 0 | `EXIT_OK` | every candidate in the image decoded successfully (at least one detection, no errors) |
-| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi` or one that is neither a number nor `auto`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence` or `--expect`, an unknown `--polarity`, `--jobs` below 1, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
-| 3 | `EXIT_INPUT` | `batch` found no input image at all, or could not create its output directories or write its `--jsonl`/`--csv` file; an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
+| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, a `--dpi` that is not a positive finite number (or, for `decode` and `batch`, `auto`), an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence` or `--expect`, an unknown `--polarity`, `--jobs` below 1, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
+| 3 | `EXIT_INPUT` | `batch` found no input image at all, or could not create its output directories or write its `--jsonl`/`--csv` file; an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` or `--debug-dir` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
 | 4 | `EXIT_NO_CANDIDATES` | decoding ran but found no group of aligned bars at all (`NO_CANDIDATES`) |
 | 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation, or was rejected as `LOW_CONFIDENCE` |
 | 6 | `EXIT_PARTIAL` | a mix: at least one candidate decoded successfully and at least one other failed |

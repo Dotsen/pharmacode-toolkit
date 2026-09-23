@@ -327,3 +327,19 @@ def test_generate_svg_rejects_raster_distortions(tmp_path: Path, capsys) -> None
 def test_generate_svg_into_a_missing_directory(tmp_path: Path) -> None:
     target = tmp_path / "missing" / "c.svg"
     assert main(["generate", "--value", "1234", "--output", str(target)]) == EXIT_INPUT
+
+
+@pytest.mark.parametrize("dpi", ["nan", "inf"])
+def test_non_finite_dpi_is_a_usage_error(tmp_path: Path, dpi: str) -> None:
+    target = _code_file(tmp_path)
+    assert main(["decode", str(target), "--dpi", dpi]) == EXIT_USAGE
+    output = tmp_path / "g.png"
+    assert main(["generate", "--value", "25", "--dpi", dpi, "--output", str(output)]) == EXIT_USAGE
+
+
+def test_annotated_path_that_is_a_directory_is_an_input_error(tmp_path: Path, capsys) -> None:
+    target = _code_file(tmp_path)
+    (tmp_path / "taken.png").mkdir()
+    args = ["decode", str(target), "--annotated", str(tmp_path / "taken.png")]
+    assert main(args) == EXIT_INPUT
+    assert "could not write" in capsys.readouterr().err

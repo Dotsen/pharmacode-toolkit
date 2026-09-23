@@ -22,6 +22,9 @@ from pharmacode.models import DecoderConfig, ErrorCode
 from pharmacode.pipeline import load_and_decode
 from pharmacode.visualization import annotate
 
+EXIT_EXCEPTION = 1  # what Python itself exits with on an uncaught exception
+# concurrent.futures refuses more worker processes than this on Windows
+WINDOWS_MAX_WORKERS = 61
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 CSV_COLUMNS = (
     "path",
@@ -119,6 +122,12 @@ def decode_one(task: tuple[int, Path, BatchOptions]) -> tuple[dict[str, Any], li
         result, image, resolution = load_and_decode(path, options.config, options.auto_dpi, debug)
     except InputError as exc:
         return _unreadable(path, str(exc), options.expect), [f"{path}: {exc}"]
+    except Exception as exc:  # a defect on one image must not cost the rest of the batch
+        record = _unreadable(path, "", options.expect)
+        record["errors"] = []
+        record["exception"] = f"{type(exc).__name__}: {exc}"
+        record["exit_code"] = EXIT_EXCEPTION
+        return record, [f"{path}: unexpected {record['exception']}"]
     note = dpi_note(resolution)
     if note is not None:
         notes.append(f"{path}: {note}")
@@ -156,7 +165,10 @@ def iter_batch(
     # spawn, as on Windows and macOS: forking a process that already runs OpenCV's worker
     # threads can deadlock the child
     context = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=min(jobs, len(tasks)), mp_context=context) as pool:
+    workers = min(jobs, len(tasks))
+    if sys.platform == "win32":
+        workers = min(workers, WINDOWS_MAX_WORKERS)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
         yield from pool.map(decode_one, tasks)
 
 

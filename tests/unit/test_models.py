@@ -80,6 +80,12 @@ def test_result_ok_when_detections_and_no_errors() -> None:
     assert DecodeResult(ImageInfo(None, 1, 1, None), (detection,), ()).ok is True
 
 
+@pytest.mark.parametrize("dpi", [0.0, -300.0, float("nan"), float("inf")])
+def test_config_rejects_a_dpi_that_is_not_a_positive_number(dpi: float) -> None:
+    with pytest.raises(ValueError, match="dpi"):
+        DecoderConfig(dpi=dpi)
+
+
 def test_config_rejects_unknown_polarity() -> None:
     with pytest.raises(ValueError, match="polarity"):
         DecoderConfig(polarity="inverted")

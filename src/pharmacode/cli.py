@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -91,8 +92,8 @@ def _add_decoder_options(command: argparse.ArgumentParser) -> None:
 def decoder_setup(args: argparse.Namespace) -> DecoderConfig | str:
     """The decoder configuration the shared options ask for, or a usage error message."""
     auto_dpi = args.dpi == "auto"
-    if not auto_dpi and args.dpi is not None and args.dpi <= 0:
-        return "--dpi must be positive"
+    if not auto_dpi and args.dpi is not None and not (math.isfinite(args.dpi) and args.dpi > 0):
+        return "--dpi must be a positive number"
     if not 2 <= args.min_bars <= args.max_bars <= 16:
         return "--min-bars and --max-bars must satisfy 2 <= min <= max <= 16"
     if not 0.0 <= args.min_confidence <= 1.0:
@@ -191,8 +192,8 @@ def run_generate(args: argparse.Namespace) -> int:
         bars = encode(args.value)
     except (TypeError, ValueError) as exc:
         return _fail(str(exc), EXIT_USAGE)
-    if args.dpi <= 0:
-        return _fail("--dpi must be positive", EXIT_USAGE)
+    if not (math.isfinite(args.dpi) and args.dpi > 0):
+        return _fail("--dpi must be a positive number", EXIT_USAGE)
     spec = RenderSpec.miniature(dpi=args.dpi) if args.miniature else RenderSpec(dpi=args.dpi)
     if Path(args.output).suffix.lower() == ".svg":
         return _generate_svg(args, bars, spec)

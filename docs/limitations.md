@@ -29,8 +29,9 @@
 - **DPI is read from the file only with `--dpi auto`, and never from a camera
   photo.** A photo's stored resolution does not describe the photographed
   object, so `auto` ignores it (see [cli.md](cli.md#dpi-from-the-file));
-  without a number, a photo is decoded without the physical checks. A scan
-  whose software writes a wrong resolution is taken at its word.
+  without a number, a photo is decoded without the physical checks. Values
+  below 100 DPI or above 4800 DPI are ignored as implausible. A scan whose
+  software writes a wrong resolution is taken at its word.
 - **Very small codes are not supported:** bars shorter than about 8 px, or
   narrower than about 2 px, fall below the component filters and are ignored.
 - **Degradation beyond the benchmarked range is untested:** JPEG quality
