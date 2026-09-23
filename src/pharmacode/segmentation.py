@@ -109,6 +109,37 @@ def runs_from_profile(profile: np.ndarray, threshold: float) -> list[Run]:
     return runs
 
 
+def drop_background_edges(
+    mask: np.ndarray, runs: Sequence[Run], centre: int, config: DecoderConfig
+) -> list[Run]:
+    """Drop an ink run at either end that is the edge of a surrounding dark area, not a bar.
+
+    A code printed on a light patch inside a dark area (a white knockout on a
+    dark carton, or an inverted code's dark patch once inverted) puts that
+    area's edge inside the candidate window whenever the patch margin is
+    narrower than the window. That edge shows up as one more ink run at the
+    end of the profile, but unlike a bar it fills nearly the whole window
+    height (``background_edge_height_fraction``) and stands taller than the
+    code's other bars by more than ``max_height_deviation``. It is dropped, so
+    the quiet zone on that side ends where the dark area begins and is then
+    checked like any other. Bars of a tightly cropped code also fill the
+    window, but all to the same height, so they are never dropped.
+    """
+    trimmed = list(runs)
+    bar_indices = [index for index, (is_bar, _, _) in enumerate(trimmed) if is_bar]
+    if len(bar_indices) < 3:
+        return trimmed
+    bars = [(trimmed[index][1], trimmed[index][2]) for index in bar_indices]
+    heights = measure_heights(mask, bars, centre)
+    limit = (1.0 + config.max_height_deviation) * float(np.median(heights[1:-1]))
+    full = config.background_edge_height_fraction * mask.shape[0]
+    if heights[-1] >= full and heights[-1] > limit:
+        trimmed = trimmed[: bar_indices[-1]]
+    if heights[0] >= full and heights[0] > limit:
+        trimmed = trimmed[bar_indices[0] + 1 :]
+    return trimmed
+
+
 def measure_runs(runs: Sequence[Run]) -> tuple[list[tuple[int, int]], list[int], int, int]:
     """Split runs into bars ``(start, width)``, inner gap widths, leading and trailing space."""
     bars = [(start, length) for is_bar, start, length in runs if is_bar]
@@ -299,6 +330,7 @@ def _sequence_from_mask(
 ) -> BarSequence | DecodeError:
     profile, (top, bottom) = bar_profile(mask, config.profile_band_fraction)
     runs = runs_from_profile(profile, config.profile_threshold)
+    runs = drop_background_edges(mask, runs, (top + bottom) // 2, config)
     bars, gaps, leading, trailing = measure_runs(runs)
     count_error = check_bar_count(len(bars), config)
     if count_error is not None:

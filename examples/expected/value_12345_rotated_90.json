@@ -15,6 +15,7 @@
         "height": 224
       },
       "orientation_deg": 90.0,
+      "polarity": "dark",
       "bars": [
         "narrow",
         "wide",

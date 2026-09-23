@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pharmacode.cli import (
     EXIT_INPUT,
@@ -196,3 +197,21 @@ def test_benchmark_rejects_negative_max_false_positives(tmp_path: Path) -> None:
         "-1",
     ]
     assert main(args) == EXIT_USAGE
+
+
+def test_decode_polarity_reads_an_inverted_code(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "inverted.png"
+    save_image(target, 255 - render_value(1234))
+    assert main(["decode", str(target), "--dpi", "300"]) == EXIT_NO_CANDIDATES
+    capsys.readouterr()
+    assert main(["decode", str(target), "--dpi", "300", "--polarity", "auto"]) == EXIT_OK
+    detection = json.loads(capsys.readouterr().out)["detections"][0]
+    assert (detection["value"], detection["polarity"]) == (1234, "light")
+
+
+def test_decode_rejects_unknown_polarity(tmp_path: Path) -> None:
+    target = tmp_path / "code.png"
+    save_image(target, render_value(1234))
+    with pytest.raises(SystemExit) as raised:
+        main(["decode", str(target), "--polarity", "inverse"])
+    assert raised.value.code == EXIT_USAGE

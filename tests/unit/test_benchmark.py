@@ -28,6 +28,7 @@ def test_conditions_cover_every_group() -> None:
         "edge",
         "multi",
         "tolerance",
+        "patch",
     }
     assert len(build_conditions(quick=True)) < len(build_conditions(quick=False))
 

@@ -51,6 +51,7 @@ def test_result_serialises_to_contract() -> None:
     assert payload["detections"][0] == {
         "bbox": {"x": 10, "y": 20, "width": 300, "height": 80},
         "orientation_deg": 0.0,
+        "polarity": "dark",
         "bars": ["narrow", "wide"],
         "bar_widths_px": [6, 18],
         "value": 4,
@@ -71,6 +72,11 @@ def test_result_ok_when_detections_and_no_errors() -> None:
         BoundingBox(0, 0, 1, 1), 0.0, (BarKind.NARROW,) * 2, (1, 1), 3, 3, 1.0, ()
     )
     assert DecodeResult(ImageInfo(None, 1, 1, None), (detection,), ()).ok is True
+
+
+def test_config_rejects_unknown_polarity() -> None:
+    with pytest.raises(ValueError, match="polarity"):
+        DecoderConfig(polarity="inverted")
 
 
 def test_config_defaults_derive_from_laetus_ratios() -> None:

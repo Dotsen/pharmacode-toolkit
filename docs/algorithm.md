@@ -74,7 +74,21 @@ selects the miniature column, the default is standard.
 
 ## 3. Pipeline
 
-`decode_image` runs the same stages on every image:
+`decode_image` runs the same stages on every image. They assume dark bars
+on a light background; `DecoderConfig.polarity` (`decode --polarity`) says
+which way round the code is printed:
+
+- `"dark"` (default) — dark bars on light, the stages below run once;
+- `"light"` — light bars on dark: the stages run once on the inverted image
+  (`255 - gray`);
+- `"auto"` — the stages run on the image as it is and, only when that pass
+  decodes nothing, once more on the inverted image. A printed code therefore
+  costs one pass and gets exactly the `"dark"` result. When neither pass
+  decodes anything, the dark pass's errors are reported, unless the dark
+  pass found no candidate at all and the light pass did.
+
+Each detection's `polarity` says which pass read it (`"dark"` or `"light"`);
+bounding boxes refer to the original image either way.
 
 1. **load** — `pharmacode.io.load_image` reads a PNG, JPEG or TIFF file into
    an 8-bit grayscale array (the CLI's `decode` command does this before
@@ -143,7 +157,18 @@ For each candidate:
    the profile (`profile_threshold`) and run-length encode it into bar
    `(start, width)` pairs, inner gap widths, and the leading/trailing quiet
    zones; `check_bar_count` rejects a count outside `[min_bars, max_bars]`
-   here (`TOO_FEW_BARS`, `TOO_MANY_BARS`).
+   here (`TOO_FEW_BARS`, `TOO_MANY_BARS`). Before measuring,
+   `segmentation.drop_background_edges` removes an ink run at either end
+   that is the edge of a dark area around the code rather than a bar: a
+   code on a light patch inside a dark area (a white knockout on a dark
+   carton, or an inverted code's patch once inverted) puts the patch edge
+   inside the candidate window whenever the patch margin is narrower than
+   the window (7 to 11 mm with DPI). Such a run covers nearly the whole
+   window height (`background_edge_height_fraction`) and stands taller than
+   the code's other bars by more than `max_height_deviation`; dropping it
+   ends the quiet zone at the patch edge, where it is then checked like any
+   other. Bars of a tightly cropped code also fill the window, but all to
+   the same height, so they are never dropped.
 9. **classify** — `segmentation.classify_widths` assigns narrow or wide to
    every bar, splitting the sorted widths at their largest ratio jump and
    testing each bar against the resulting class medians (see below);
@@ -200,6 +225,7 @@ where the number comes from:
 | `dpi` | `None` | optional resolution in dots per inch; when set, enables the physical (mm) checks below instead of the nominal-ratio fallbacks |
 | `min_bars` | 2 | format minimum bar count |
 | `max_bars` | 16 | format maximum bar count |
+| `polarity` | `"dark"` | `"dark"`, `"light"` or `"auto"`; see section 3 |
 | `background_kernel_fraction` | 0.05 | closing kernel = 5% of the image's longer side |
 | `background_kernel_min_mm` | 3.2 mm | absolute floor for the closing kernel, applied when DPI is known: the kernel must exceed the widest legal bar (wide tolerance up to 2.5 mm) so it fully erases every bar from the background estimate; a code's height is a fixed ~24 mm (8 mm bars plus two 8 mm margins), so for a short, few-bar code 5% of the image's longer side (its height) can be narrower than even a nominal 1.5 mm wide bar — 3.2 mm clears the 2.5 mm tolerance limit with margin while staying below the span of a run of several same-class bars |
 | `background_kernel_stroke_factor` | 3.0 | the closing kernel must exceed the widest bar; the kernel floor is set to 3x the thickest bar-like stroke measured on the raw (unflattened) mask by `detection.estimate_stroke_px`, so a code whose bars are wide relative to the image (filling the frame) still gets a kernel bigger than them, regardless of DPI or the image-fraction floor |
@@ -228,6 +254,7 @@ where the number comes from:
 | `quiet_zone_nominal_wide_ratio` | 4.0 | without DPI, the nominal quiet zone as a multiple of the mean wide-bar width (6 mm / 1.5 mm nominal wide) |
 | `allow_truncated_quiet_zone` | `False` | opt-in (`--allow-cropped-quiet-zone`): when a candidate touches the image border, a short quiet zone on that side becomes a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION`; a short zone on a side that is not touching the border is always an error |
 | `max_height_deviation` | 0.20 | bars of one code share one height, within 20% of the median |
+| `background_edge_height_fraction` | 0.9 | an ink run at an end of the profile covering this much of the window height, and taller than the bars by more than `max_height_deviation`, is the edge of a dark area around the code and is dropped (section 3, step 8); the window is twice the bar length, so a bar alone covers about half of it |
 | `gap_ratio_range` | (0.6, 1.5) | one code's printed gaps should be close to one width; the 1.5x upper tolerance absorbs blur and low-DPI rounding |
 | `single_class_no_dpi_confidence_cap` | 0.5 | ceiling on the width-margin (and so overall) confidence for a single-width-class code classified without DPI, since a gap-based ruler has no absolute scale |
 | `min_confidence` | 0.0 | detections below this confidence are reported as `LOW_CONFIDENCE` errors instead (`decode --min-confidence`); 0 keeps every decoded candidate |

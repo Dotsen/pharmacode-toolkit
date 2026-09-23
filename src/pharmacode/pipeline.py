@@ -22,13 +22,40 @@ from pharmacode.segmentation import extract_bars
 def decode_image(
     image: np.ndarray, config: DecoderConfig | None = None, path: str | None = None
 ) -> DecodeResult:
-    """Detect, segment and decode every Pharmacode in ``image`` (gray or BGR uint8)."""
+    """Detect, segment and decode every Pharmacode in ``image`` (gray or BGR uint8).
+
+    ``config.polarity`` picks dark bars on a light background (``"dark"``), the
+    inverse (``"light"``), or ``"auto"``: the dark pass first, and the light pass
+    only when the dark pass decodes nothing, so an ordinary printed code costs a
+    single pass and keeps exactly the result of ``"dark"``. When neither pass
+    decodes anything, ``"auto"`` reports the dark pass's errors, unless the dark
+    pass found no candidate at all and the light pass did.
+    """
     config = DecoderConfig() if config is None else config
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     info = ImageInfo(path, int(gray.shape[1]), int(gray.shape[0]), config.dpi)
     if gray.size == 0:
         error = DecodeError(ErrorCode.NO_CANDIDATES, "image is empty")
         return DecodeResult(info, (), (error,))
+    if config.polarity == "light":
+        return _decode_pass(255 - gray, config, info, "light")
+    dark = _decode_pass(gray, config, info, "dark")
+    if config.polarity == "dark" or dark.detections:
+        return dark
+    light = _decode_pass(255 - gray, config, info, "light")
+    if light.detections or (_found_nothing(dark) and not _found_nothing(light)):
+        return light
+    return dark
+
+
+def _found_nothing(result: DecodeResult) -> bool:
+    return any(error.code is ErrorCode.NO_CANDIDATES for error in result.errors)
+
+
+def _decode_pass(
+    gray: np.ndarray, config: DecoderConfig, info: ImageInfo, polarity: str
+) -> DecodeResult:
+    """One pass over an image whose bars are dark; ``polarity`` labels the detections."""
     dpi_floor_px = 0
     if config.dpi is not None:
         dpi_floor_px = int(round(config.mm_to_px(config.background_kernel_min_mm)))
@@ -72,6 +99,7 @@ def decode_image(
                 confidence=confidence,
                 warnings=sequence.warnings,
                 bar_rects=rects,
+                polarity=polarity,
             )
         )
     return DecodeResult(info, tuple(detections), tuple(errors))

@@ -15,6 +15,7 @@
         "height": 94
       },
       "orientation_deg": 0.0,
+      "polarity": "dark",
       "bars": [
         "narrow",
         "wide",
@@ -44,6 +45,7 @@
         "height": 94
       },
       "orientation_deg": 0.0,
+      "polarity": "dark",
       "bars": [
         "wide",
         "wide",
@@ -95,6 +97,7 @@
         "height": 125
       },
       "orientation_deg": 90.0,
+      "polarity": "dark",
       "bars": [
         "narrow",
         "wide",

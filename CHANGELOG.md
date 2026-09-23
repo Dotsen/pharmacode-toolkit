@@ -4,6 +4,14 @@
 
 - The package ships a `py.typed` marker (PEP 561), so type checkers use its annotations.
 - CI also tests Python 3.13, which the package metadata already declared.
+- `decode --polarity light|auto` (`DecoderConfig.polarity`) reads light bars on a dark
+  background; `auto` adds the inverted pass only when the normal one decodes nothing.
+  Every detection reports its `polarity` in the JSON result.
+- A code on a light patch inside a dark area (a white knockout on a dark carton, or an
+  inverted code) decodes when the patch leaves less than 11 mm around it: the patch edge now
+  ends the quiet zone instead of being read as one more bar.
+- Benchmark: a `patch` group (`inverted-auto`, `knockout-dark`), and every negative image is
+  also decoded inverted, with `polarity="auto"`.
 
 ## 0.2.1 - 2026-09-20
 

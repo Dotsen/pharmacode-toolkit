@@ -23,7 +23,8 @@ barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
 - Renders synthetic codes with the Laetus physical dimensions at any DPI, with
   optional rotation, blur, noise, JPEG artefacts, contrast loss, uneven lighting,
   perspective and scaling, all seeded and reproducible.
-- Finds one or more codes in an image at 0, 90, 180 and 270 degrees and small tilts.
+- Finds one or more codes in an image at 0, 90, 180 and 270 degrees and small tilts,
+  dark on light or, with `--polarity light` or `auto`, light on dark.
 - Classifies bars, checks quiet zones and geometry, and reports **both** reading
   directions, because the format has no start or stop pattern.
 - Writes a JSON result with stable error codes and an annotated image.
@@ -63,15 +64,15 @@ for code in result.detections:
 
 ## Supported input
 
-8-bit grayscale or colour PNG, JPEG and TIFF; dark bars on a light background;
-codes upright, rotated by multiples of 90 degrees, or tilted a few degrees.
+8-bit grayscale or colour PNG, JPEG and TIFF; dark bars on a light background
+(or light on dark with `--polarity light` or `auto`); codes upright, rotated by multiples of 90 degrees, or tilted a few degrees.
 Pass `--dpi` whenever you know the resolution: it enables physical checks and
 reliable classification of codes that use a single bar width.
 
 ## Limitations
 
-See [docs/limitations.md](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/limitations.md). In short: no inverted codes, no
-two-track or colour Pharmacode, no DPI from file metadata. Thresholds come from the
+See [docs/limitations.md](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/limitations.md). In short: no two-track or colour
+Pharmacode, no DPI from file metadata. Thresholds come from the
 specification and a synthetic benchmark; on top of that the decoder is checked
 against real-world sample images (codes as they appear in the wild: with captions,
 tightly cropped, with a rule drawn across the bars, inside a chart of symbologies).
