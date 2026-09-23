@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from xml.etree import ElementTree
+
 import numpy as np
 import pytest
 
 from pharmacode.encoding import encode
 from pharmacode.imageops import flatten_background, otsu_mask, rotate_bound
-from pharmacode.models import BarKind
+from pharmacode.models import BarKind, DecoderConfig
+from pharmacode.pipeline import decode_image
 from pharmacode.rendering import (
     NEGATIVE_KINDS,
     Distortion,
@@ -14,6 +17,7 @@ from pharmacode.rendering import (
     distort,
     render_bars,
     render_negative,
+    render_svg,
     render_value,
 )
 
@@ -174,3 +178,62 @@ def test_distortion_accepts_default_and_fully_valid_values() -> None:
         illumination_gradient=0.5,
         jpeg_quality=50,
     )
+
+
+SVG = "{http://www.w3.org/2000/svg}"
+
+
+def _rasterise(document: str, dpi: float) -> np.ndarray:
+    """Paint an SVG made of axis-aligned rects (as render_svg writes it) at ``dpi``."""
+    root = ElementTree.fromstring(document)
+    scale = dpi / 25.4
+    _, _, width, height = (float(v) for v in root.attrib["viewBox"].split())
+    canvas = np.full((round(height * scale), round(width * scale)), 255, dtype=np.uint8)
+    for rect in root.iter(f"{SVG}rect"):
+        x, y = float(rect.get("x", 0)), float(rect.get("y", 0))
+        w, h = float(rect.attrib["width"]), float(rect.attrib["height"])
+        fill = rect.get("fill") or "#000000"
+        x0, y0 = round(x * scale), round(y * scale)
+        canvas[y0 : y0 + round(h * scale), x0 : x0 + round(w * scale)] = int(fill[1:3], 16)
+    return canvas
+
+
+def test_render_svg_is_in_exact_millimetres() -> None:
+    document = render_svg(encode(1234), title="Pharmacode 1234")
+    root = ElementTree.fromstring(document)
+    assert (root.attrib["width"], root.attrib["height"]) == ("35mm", "24mm")
+    assert root.attrib["viewBox"] == "0 0 35 24"
+    assert root.find(f"{SVG}title").text == "Pharmacode 1234"
+    bars = list(root.find(f"{SVG}g").iter(f"{SVG}rect"))
+    assert [float(bar.attrib["width"]) for bar in bars] == [
+        1.5 if kind is BarKind.WIDE else 0.5 for kind in encode(1234)
+    ]
+    assert float(bars[1].attrib["x"]) - float(bars[0].attrib["x"]) == 1.5  # 0.5 bar + 1 mm gap
+
+
+def test_render_svg_miniature_and_colours() -> None:
+    spec = RenderSpec.miniature(foreground=40, background=250)
+    root = ElementTree.fromstring(render_svg(encode(25), spec))
+    group = root.find(f"{SVG}g")
+    assert group.attrib["fill"] == "#282828"
+    assert root.find(f"{SVG}rect").attrib["fill"] == "#fafafa"
+    assert [float(bar.attrib["width"]) for bar in group] == [1.0, 0.35, 1.0, 0.35]
+
+
+def test_render_svg_escapes_the_title() -> None:
+    document = render_svg(encode(3), title="<a & b>")
+    assert "<title>&lt;a &amp; b&gt;</title>" in document
+
+
+def test_render_svg_rejects_an_empty_sequence() -> None:
+    with pytest.raises(ValueError):
+        render_svg(())
+
+
+@pytest.mark.parametrize("value", [3, 25, 1234, 12345, 131070])
+@pytest.mark.parametrize("miniature", [False, True], ids=["standard", "miniature"])
+def test_render_svg_decodes_once_rasterised(value: int, miniature: bool) -> None:
+    spec = RenderSpec.miniature() if miniature else RenderSpec()
+    image = _rasterise(render_svg(encode(value), spec), 600.0)
+    result = decode_image(image, DecoderConfig(dpi=600.0))
+    assert [d.value for d in result.detections] == [value], result.to_dict()

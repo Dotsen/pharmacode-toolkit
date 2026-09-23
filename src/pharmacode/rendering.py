@@ -10,6 +10,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
+from xml.sax.saxutils import escape
 
 import cv2
 import numpy as np
@@ -76,6 +77,49 @@ def render_value(value: int, spec: RenderSpec | None = None) -> np.ndarray:
     if spec is None:
         spec = RenderSpec()
     return render_bars(encode(value), spec)
+
+
+def _mm(value: float) -> str:
+    """A length in mm for SVG: at most 4 decimals, no trailing zeros."""
+    return f"{value:.4f}".rstrip("0").rstrip(".")
+
+
+def render_svg(bars: Sequence[BarKind], spec: RenderSpec | None = None, title: str = "") -> str:
+    """Render a bar sequence as an SVG document in exact millimetres.
+
+    Same layout as :func:`render_bars` (most significant bar on the left,
+    quiet zone and margin on every side) but with no pixel rounding: the
+    document's ``width`` and ``height`` are in mm and one user unit is 1 mm,
+    so it prints at its physical size. ``spec.dpi`` is not used.
+    """
+    if spec is None:
+        spec = RenderSpec()
+    if not bars:
+        raise ValueError("cannot render an empty bar sequence")
+    widths = [spec.wide_mm if kind is BarKind.WIDE else spec.narrow_mm for kind in bars]
+    border = spec.quiet_zone_mm + spec.margin_mm
+    width = sum(widths) + spec.gap_mm * (len(widths) - 1) + 2 * border
+    height = spec.height_mm + 2 * border
+    foreground = f"#{spec.foreground:02x}{spec.foreground:02x}{spec.foreground:02x}"
+    background = f"#{spec.background:02x}{spec.background:02x}{spec.background:02x}"
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{_mm(width)}mm" '
+        f'height="{_mm(height)}mm" viewBox="0 0 {_mm(width)} {_mm(height)}">',
+    ]
+    if title:
+        lines.append(f"  <title>{escape(title)}</title>")
+    lines.append(f'  <rect width="{_mm(width)}" height="{_mm(height)}" fill="{background}"/>')
+    lines.append(f'  <g fill="{foreground}" shape-rendering="crispEdges">')
+    x = border
+    for bar_width in widths:
+        lines.append(
+            f'    <rect x="{_mm(x)}" y="{_mm(border)}" width="{_mm(bar_width)}" '
+            f'height="{_mm(spec.height_mm)}"/>'
+        )
+        x += bar_width + spec.gap_mm
+    lines += ["  </g>", "</svg>", ""]
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)

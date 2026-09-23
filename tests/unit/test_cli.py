@@ -303,3 +303,27 @@ def test_decode_report_geometry(tmp_path: Path, capsys) -> None:
     assert geometry["bar_widths_mm"][0] == pytest.approx(0.5, abs=0.1)
     assert main(["decode", str(target), "--dpi", "300"]) == EXIT_OK
     assert "geometry" not in json.loads(capsys.readouterr().out)["detections"][0]
+
+
+def test_generate_svg_writes_millimetres(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "code.svg"
+    assert main(["generate", "--value", "1234", "--miniature", "--output", str(target)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    # 1234 is NNWWNWNNWW: 5 narrow and 5 wide bars, 9 gaps, 8 mm border on each side
+    assert summary["width_mm"] == pytest.approx(5 * 0.35 + 5 * 1.0 + 9 * 0.65 + 16.0)
+    assert summary["height_mm"] == 22.0
+    assert "width" not in summary and "dpi" not in summary
+    document = target.read_text(encoding="utf-8")
+    assert document.startswith("<?xml") and "<title>Pharmacode 1234</title>" in document
+
+
+def test_generate_svg_rejects_raster_distortions(tmp_path: Path, capsys) -> None:
+    args = ["generate", "--value", "1234", "--output", str(tmp_path / "c.svg")]
+    assert main([*args, "--rotation", "90", "--jpeg", "50"]) == EXIT_USAGE
+    assert "--rotation, --jpeg" in capsys.readouterr().err
+    assert not (tmp_path / "c.svg").exists()
+
+
+def test_generate_svg_into_a_missing_directory(tmp_path: Path) -> None:
+    target = tmp_path / "missing" / "c.svg"
+    assert main(["generate", "--value", "1234", "--output", str(target)]) == EXIT_INPUT
