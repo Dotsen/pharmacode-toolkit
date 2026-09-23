@@ -1,4 +1,4 @@
-"""Command line interface: ``pharmacode generate | decode | benchmark``."""
+"""Command line interface: ``pharmacode generate | decode | batch | benchmark``."""
 
 from __future__ import annotations
 
@@ -12,8 +12,10 @@ from typing import Any
 import numpy as np
 
 from pharmacode import __version__
+from pharmacode.debug import DebugRecorder
 from pharmacode.encoding import MAX_VALUE, MIN_VALUE, encode
 from pharmacode.io import InputError, save_image
+from pharmacode.metadata import Resolution
 from pharmacode.models import POLARITIES, DecoderConfig, DecodeResult, ErrorCode
 from pharmacode.pipeline import load_and_decode
 from pharmacode.rendering import Distortion, RenderSpec, distort, render_bars
@@ -27,6 +29,7 @@ EXIT_VALIDATION_FAILED = 5
 EXIT_PARTIAL = 6
 EXIT_BENCHMARK_FAILED = 7
 EXIT_EXPECTATION_FAILED = 8
+EXIT_BATCH_FAILURES = 9
 
 
 def _fail(message: str, code: int) -> int:
@@ -42,6 +45,76 @@ def _dpi_argument(text: str) -> float | str:
         return float(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"expected a number or 'auto', got {text!r}") from None
+
+
+def _add_decoder_options(command: argparse.ArgumentParser) -> None:
+    """Options shared by ``decode`` and ``batch``; see :func:`decoder_setup`."""
+    command.add_argument(
+        "--dpi",
+        type=_dpi_argument,
+        default=None,
+        help="resolution for physical checks, or 'auto' to read it from the file",
+    )
+    command.add_argument("--min-bars", type=int, default=2)
+    command.add_argument("--max-bars", type=int, default=16)
+    command.add_argument(
+        "--allow-cropped-quiet-zone",
+        action="store_true",
+        help="treat a quiet zone cut by the image edge as a warning instead of "
+        "QUIET_ZONE_VIOLATION",
+    )
+    command.add_argument(
+        "--polarity",
+        choices=POLARITIES,
+        default="dark",
+        help="dark bars on light (default), light bars on dark, or auto: try both",
+    )
+    command.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        help="reject detections below this confidence as LOW_CONFIDENCE errors (0.0..1.0)",
+    )
+    command.add_argument(
+        "--expect",
+        type=int,
+        default=None,
+        help="exit 0 only if a detection reads this value, in either direction; else exit 8",
+    )
+    command.add_argument(
+        "--report-geometry",
+        action="store_true",
+        help="add measured bar, gap and quiet-zone sizes, with the Laetus tolerances, to the JSON",
+    )
+
+
+def decoder_setup(args: argparse.Namespace) -> DecoderConfig | str:
+    """The decoder configuration the shared options ask for, or a usage error message."""
+    auto_dpi = args.dpi == "auto"
+    if not auto_dpi and args.dpi is not None and args.dpi <= 0:
+        return "--dpi must be positive"
+    if not 2 <= args.min_bars <= args.max_bars <= 16:
+        return "--min-bars and --max-bars must satisfy 2 <= min <= max <= 16"
+    if not 0.0 <= args.min_confidence <= 1.0:
+        return "--min-confidence must be between 0.0 and 1.0"
+    if args.expect is not None and not MIN_VALUE <= args.expect <= MAX_VALUE:
+        return f"--expect must be between {MIN_VALUE} and {MAX_VALUE}"
+    return DecoderConfig(
+        dpi=None if auto_dpi else args.dpi,
+        min_bars=args.min_bars,
+        max_bars=args.max_bars,
+        allow_truncated_quiet_zone=args.allow_cropped_quiet_zone,
+        min_confidence=args.min_confidence,
+        polarity=args.polarity,
+    )
+
+
+def dpi_note(resolution: Resolution | None) -> str | None:
+    """What ``--dpi auto`` has to say when it found no usable DPI in the file."""
+    if resolution is None or resolution.dpi is not None:
+        return None
+    reason = resolution.note or "the file stores no resolution"
+    return f"--dpi auto: {reason}; decoding without DPI"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,46 +144,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     decode = commands.add_parser("decode", help="find and decode Pharmacode in an image")
     decode.add_argument("input", help="PNG, JPEG or TIFF file")
-    decode.add_argument(
-        "--dpi",
-        type=_dpi_argument,
-        default=None,
-        help="resolution for physical checks, or 'auto' to read it from the file",
-    )
     decode.add_argument("--json", default=None, help="write the result here instead of stdout")
     decode.add_argument("--annotated", default=None, help="write an annotated image here")
-    decode.add_argument("--min-bars", type=int, default=2)
-    decode.add_argument("--max-bars", type=int, default=16)
     decode.add_argument(
-        "--allow-cropped-quiet-zone",
-        action="store_true",
-        help="treat a quiet zone cut by the image edge as a warning instead of "
-        "QUIET_ZONE_VIOLATION",
+        "--debug-dir", default=None, help="write intermediate images and measurements here"
     )
-    decode.add_argument(
-        "--polarity",
-        choices=POLARITIES,
-        default="dark",
-        help="dark bars on light (default), light bars on dark, or auto: try both",
-    )
-    decode.add_argument(
-        "--min-confidence",
-        type=float,
-        default=0.0,
-        help="reject detections below this confidence as LOW_CONFIDENCE errors (0.0..1.0)",
-    )
-    decode.add_argument(
-        "--expect",
-        type=int,
-        default=None,
-        help="exit 0 only if a detection reads this value, in either direction; else exit 8",
-    )
-    decode.add_argument(
-        "--report-geometry",
-        action="store_true",
-        help="add measured bar, gap and quiet-zone sizes, with the Laetus tolerances, to the JSON",
-    )
+    _add_decoder_options(decode)
     decode.set_defaults(handler=run_decode)
+
+    batch = commands.add_parser("batch", help="decode many images into JSON Lines and CSV")
+    batch.add_argument(
+        "inputs", nargs="+", help="image files, directories, or glob patterns such as 'scans/*.png'"
+    )
+    batch.add_argument(
+        "--recursive", action="store_true", help="also search subdirectories of directories"
+    )
+    batch.add_argument("--jsonl", default=None, help="write one JSON result per line here")
+    batch.add_argument("--csv", default=None, help="also write a one-row-per-image summary here")
+    batch.add_argument("--annotated-dir", default=None, help="write annotated images here")
+    batch.add_argument(
+        "--debug-dir", default=None, help="write each image's intermediate images here"
+    )
+    batch.add_argument("--jobs", type=int, default=1, help="decode this many images in parallel")
+    _add_decoder_options(batch)
+    batch.set_defaults(handler=run_batch_command)
 
     benchmark = commands.add_parser("benchmark", help="run the synthetic benchmark matrix")
     benchmark.add_argument("--seed", type=int, default=20260919)
@@ -189,30 +246,17 @@ def exit_code_for(result: DecodeResult, expect: int | None = None) -> int:
 
 
 def run_decode(args: argparse.Namespace) -> int:
-    auto_dpi = args.dpi == "auto"
-    if not auto_dpi and args.dpi is not None and args.dpi <= 0:
-        return _fail("--dpi must be positive", EXIT_USAGE)
-    if not 2 <= args.min_bars <= args.max_bars <= 16:
-        return _fail("--min-bars and --max-bars must satisfy 2 <= min <= max <= 16", EXIT_USAGE)
-    if not 0.0 <= args.min_confidence <= 1.0:
-        return _fail("--min-confidence must be between 0.0 and 1.0", EXIT_USAGE)
-    if args.expect is not None and not MIN_VALUE <= args.expect <= MAX_VALUE:
-        return _fail(f"--expect must be between {MIN_VALUE} and {MAX_VALUE}", EXIT_USAGE)
-    config = DecoderConfig(
-        dpi=None if auto_dpi else args.dpi,
-        min_bars=args.min_bars,
-        max_bars=args.max_bars,
-        allow_truncated_quiet_zone=args.allow_cropped_quiet_zone,
-        min_confidence=args.min_confidence,
-        polarity=args.polarity,
-    )
+    config = decoder_setup(args)
+    if isinstance(config, str):
+        return _fail(config, EXIT_USAGE)
+    debug = DebugRecorder() if args.debug_dir else None
     try:
-        result, image, resolution = load_and_decode(args.input, config, auto_dpi)
+        result, image, resolution = load_and_decode(args.input, config, args.dpi == "auto", debug)
     except InputError as exc:
         return _fail(str(exc), EXIT_INPUT)
-    if resolution is not None and resolution.dpi is None:
-        reason = resolution.note or "the file stores no resolution"
-        print(f"note: --dpi auto: {reason}; decoding without DPI", file=sys.stderr)
+    note = dpi_note(resolution)
+    if note is not None:
+        print(f"note: {note}", file=sys.stderr)
     payload = json.dumps(result_payload(result, args.report_geometry, args.expect), indent=2)
     if args.json:
         try:
@@ -226,7 +270,49 @@ def run_decode(args: argparse.Namespace) -> int:
             save_image(args.annotated, annotate(image, result))
         except InputError as exc:
             return _fail(str(exc), EXIT_INPUT)
+    if debug is not None:
+        try:
+            debug.save(args.debug_dir)
+        except (InputError, OSError) as exc:
+            return _fail(f"could not write debug output to {args.debug_dir}: {exc}", EXIT_INPUT)
     return exit_code_for(result, args.expect)
+
+
+def run_batch_command(args: argparse.Namespace) -> int:
+    from pharmacode.batch import BatchOptions, collect_inputs, run_batch
+
+    config = decoder_setup(args)
+    if isinstance(config, str):
+        return _fail(config, EXIT_USAGE)
+    if args.jobs < 1:
+        return _fail("--jobs must be >= 1", EXIT_USAGE)
+    paths = collect_inputs(args.inputs, args.recursive)
+    if not paths:
+        return _fail("no input images found", EXIT_INPUT)
+    for directory in (args.annotated_dir, args.debug_dir):
+        if directory is not None:
+            try:
+                Path(directory).mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                return _fail(f"could not create {directory}: {exc}", EXIT_INPUT)
+    options = BatchOptions(
+        config=config,
+        auto_dpi=args.dpi == "auto",
+        include_geometry=args.report_geometry,
+        expect=args.expect,
+        annotated_dir=args.annotated_dir,
+        debug_dir=args.debug_dir,
+    )
+    try:
+        summary = run_batch(paths, options, args.jobs, args.jsonl, args.csv)
+    except OSError as exc:
+        return _fail(f"could not write batch output: {exc}", EXIT_INPUT)
+    print(
+        f"batch: {summary.total} images, {summary.ok} decoded cleanly, "
+        f"{summary.total - summary.ok} not",
+        file=sys.stderr,
+    )
+    return EXIT_OK if summary.ok == summary.total else EXIT_BATCH_FAILURES
 
 
 def result_payload(

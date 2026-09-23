@@ -1,7 +1,7 @@
 # Command line
 
 ```
-pharmacode [--version] {generate,decode,benchmark} ...
+pharmacode [--version] {generate,decode,batch,benchmark} ...
 ```
 
 `--version` prints the package version and exits.
@@ -43,6 +43,7 @@ Find and decode every Pharmacode in an image.
 | `--dpi FLOAT\|auto` | none | resolution in DPI; enables the physical checks (see [algorithm.md](algorithm.md)). `auto` reads it from the file (see [below](#dpi-from-the-file)) and decodes without DPI, with a `note:` on stderr, when the file has no usable value |
 | `--json PATH` | none | write the JSON result here instead of stdout |
 | `--annotated PATH` | none | also write an annotated copy of the image here |
+| `--debug-dir DIR` | none | also write every intermediate image and measurement here, created if missing (see [Debug output](#debug-output)) |
 | `--min-bars INT` | 2 | reject candidates with fewer bars than this (2..16) |
 | `--max-bars INT` | 16 | reject candidates with more bars than this (2..16) |
 | `--allow-cropped-quiet-zone` | off | turn a quiet zone cut by the image edge into a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION` (`DecoderConfig.allow_truncated_quiet_zone`); a violation on a side that is not touching the image border is still an error |
@@ -78,6 +79,72 @@ The value is ignored — and `note:` on stderr says why — when:
 So `auto` suits scans and generated images. For a photo, measure the
 resolution instead (for example, photograph a ruler at the same distance)
 and pass it as a number, or decode without `--dpi`.
+
+### Debug output
+
+`--debug-dir DIR` (`DebugRecorder` in Python, passed as
+`decode_image(..., debug=recorder)`) writes, for every pass the decoder ran
+(`dark`, `light`, or both with `--polarity auto`):
+
+| file | content |
+|---|---|
+| `<polarity>-1-input.png` | the grayscale image the pass works on (inverted for `light`) |
+| `<polarity>-2-flattened.png` | after background flattening |
+| `<polarity>-3-mask.png` | the ink mask candidates are searched in, ink black |
+| `<polarity>-4-candidates.png` | bar-shaped components (blue) and candidate boxes, numbered: green decoded, red rejected with its error code |
+| `<polarity>-candidate-<n>.png` | candidate `n` straightened: the region, its ink mask, and its ink profile with the bar threshold (red) and the bar runs found (green) |
+| `debug.json` | per pass: the background kernel floor; per candidate: box, orientation, number of bar components, outcome (bars and confidence, or error code and message), and when segmented, bar widths, gaps, quiet zones, bar height, confidence margins and warnings |
+
+Use it to see why a code failed: whether it was found at all (`4-candidates`),
+and which measurement rejected it (`candidate-<n>` and `debug.json`).
+
+## `pharmacode batch`
+
+Decode many images with the same options as `decode`, writing one JSON
+result per line (JSON Lines).
+
+```
+pharmacode batch scans/ --recursive --dpi auto --jsonl results.jsonl --csv summary.csv --jobs 4
+```
+
+| option | default | meaning |
+|---|---|---|
+| `inputs` (positional, one or more) | - | image files, directories (their `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff` files, sorted), or glob patterns such as `'scans/*.png'` (expanded by `batch` itself for shells that do not) |
+| `--recursive` | off | also search subdirectories of a directory |
+| `--jsonl PATH` | stdout | write the JSON Lines here |
+| `--csv PATH` | none | also write a one-row-per-image summary here |
+| `--annotated-dir DIR` | none | write an annotated copy of each image here, as `<nnnn>-<name>.png`, created if missing |
+| `--debug-dir DIR` | none | write each image's [debug output](#debug-output) into `DIR/<nnnn>-<name>/`, created if missing |
+| `--jobs INT` | 1 | decode this many images in parallel processes; must be >= 1 |
+
+plus every decoder option of `decode`: `--dpi` (a number or `auto`, read
+per file), `--min-bars`, `--max-bars`, `--allow-cropped-quiet-zone`,
+`--polarity`, `--min-confidence`, `--expect`, `--report-geometry`.
+
+`<nnnn>` is the image's position in the input list (from `0000`), so two
+inputs with the same name in different directories never overwrite each
+other. Records are written in input order, whatever `--jobs` is, and each
+as soon as it and every record before it are done.
+
+Each line is the `decode` JSON result for one image (on one line), plus:
+
+- `exit_code` — what `decode` with the same options would have exited
+  with for this image (0, 3, 4, 5, 6 or 8);
+- `annotated`, `debug` — paths written for this image, when asked for.
+
+An image that cannot be read still gets a line: `image.width`,
+`image.height` and `image.dpi` are `null`, `detections` is empty, `errors`
+holds one `INPUT_UNREADABLE`, and `exit_code` is 3. The batch goes on.
+
+The CSV has the columns `path`, `exit_code`, `dpi`, `dpi_source`,
+`detections` (count), `values`, `mirror_values`, `confidences`, `errors`
+(error codes) and `expected_matched` (`true`/`false`, empty without
+`--expect`); several values in one cell are joined with `;`.
+
+`note:` lines on stderr carry what `decode` would print, prefixed with the
+image path, and a last line counts the images and how many decoded
+cleanly. `batch` exits 0 when every image's `exit_code` is 0, and 9
+otherwise.
 
 ## `pharmacode benchmark`
 
@@ -207,13 +274,14 @@ quiet zone is measured only as far as the candidate window reaches (7 to
 | code | name | meaning |
 |---|---|---|
 | 0 | `EXIT_OK` | every candidate in the image decoded successfully (at least one detection, no errors) |
-| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi` or one that is neither a number nor `auto`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence` or `--expect`, an unknown `--polarity`, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
-| 3 | `EXIT_INPUT` | an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
+| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi` or one that is neither a number nor `auto`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence` or `--expect`, an unknown `--polarity`, `--jobs` below 1, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
+| 3 | `EXIT_INPUT` | `batch` found no input image at all, or could not create its output directories or write its `--jsonl`/`--csv` file; an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
 | 4 | `EXIT_NO_CANDIDATES` | decoding ran but found no group of aligned bars at all (`NO_CANDIDATES`) |
 | 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation, or was rejected as `LOW_CONFIDENCE` |
 | 6 | `EXIT_PARTIAL` | a mix: at least one candidate decoded successfully and at least one other failed |
 | 7 | `EXIT_BENCHMARK_FAILED` | benchmark gate failed: a condition fell below `--min-correct` or negatives exceeded `--max-false-positives` |
 | 8 | `EXIT_EXPECTATION_FAILED` | `decode --expect`: no detection reads the expected value (replaces 0, 4, 5 and 6 whenever `--expect` is given; with a match the exit code is 0) |
+| 9 | `EXIT_BATCH_FAILURES` | `batch`: at least one image's `exit_code` is not 0 (see its line in the JSON Lines) |
 
 For `decode`, the JSON result is written (to `--json` or stdout) for every
 exit code that follows from actually running the decoder — 0, 4, 5, 6 and 8,
