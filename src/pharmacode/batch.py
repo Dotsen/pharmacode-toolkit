@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import glob
 import json
+import multiprocessing
 import sys
 from collections.abc import Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -152,7 +153,10 @@ def iter_batch(
     if jobs == 1 or len(tasks) == 1:
         yield from map(decode_one, tasks)
         return
-    with ProcessPoolExecutor(max_workers=min(jobs, len(tasks))) as pool:
+    # spawn, as on Windows and macOS: forking a process that already runs OpenCV's worker
+    # threads can deadlock the child
+    context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=min(jobs, len(tasks)), mp_context=context) as pool:
         yield from pool.map(decode_one, tasks)
 
 
