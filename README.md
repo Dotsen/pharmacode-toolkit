@@ -20,6 +20,7 @@ barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
 ## What it does
 
 - Encodes any value from 3 to 131070 into the 2..16 narrow/wide bars of the format.
+- Writes codes as SVG in exact millimetres, ready for packaging artwork.
 - Renders synthetic codes with the Laetus physical dimensions at any DPI, with
   optional rotation, blur, noise, JPEG artefacts, contrast loss, uneven lighting,
   perspective and scaling, all seeded and reproducible.
@@ -48,6 +49,7 @@ opencv-python-headless.
 
 ```bash
 pharmacode generate --value 12345 --dpi 300 --output sample.png
+pharmacode generate --value 12345 --output artwork.svg     # vector, in mm
 pharmacode decode sample.png --dpi 300
 pharmacode decode sample.png --dpi 300 --json result.json --annotated result.png
 pharmacode decode sample.png --dpi 300 --min-confidence 0.8

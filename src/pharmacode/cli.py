@@ -16,9 +16,9 @@ from pharmacode.debug import DebugRecorder
 from pharmacode.encoding import MAX_VALUE, MIN_VALUE, encode
 from pharmacode.io import InputError, save_image
 from pharmacode.metadata import Resolution
-from pharmacode.models import POLARITIES, DecoderConfig, DecodeResult, ErrorCode
+from pharmacode.models import POLARITIES, BarKind, DecoderConfig, DecodeResult, ErrorCode
 from pharmacode.pipeline import load_and_decode
-from pharmacode.rendering import Distortion, RenderSpec, distort, render_bars
+from pharmacode.rendering import Distortion, RenderSpec, distort, render_bars, render_svg
 from pharmacode.visualization import annotate
 
 EXIT_OK = 0
@@ -127,7 +127,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     generate = commands.add_parser("generate", help="render a synthetic Pharmacode image")
     generate.add_argument("--value", type=int, required=True, help="integer 3..131070")
-    generate.add_argument("--output", required=True, help="PNG, JPEG or TIFF path")
+    generate.add_argument(
+        "--output", required=True, help="PNG, JPEG or TIFF path, or SVG for a vector in mm"
+    )
     generate.add_argument("--dpi", type=float, default=300.0)
     generate.add_argument("--miniature", action="store_true", help="Laetus miniature dimensions")
     generate.add_argument("--rotation", type=float, default=0.0, help="degrees counter-clockwise")
@@ -192,6 +194,8 @@ def run_generate(args: argparse.Namespace) -> int:
     if args.dpi <= 0:
         return _fail("--dpi must be positive", EXIT_USAGE)
     spec = RenderSpec.miniature(dpi=args.dpi) if args.miniature else RenderSpec(dpi=args.dpi)
+    if Path(args.output).suffix.lower() == ".svg":
+        return _generate_svg(args, bars, spec)
     image = render_bars(bars, spec)
     try:
         distortion = Distortion(
@@ -225,6 +229,46 @@ def run_generate(args: argparse.Namespace) -> int:
             }
         )
     )
+    return EXIT_OK
+
+
+_RASTER_ONLY = {
+    "rotation": 0.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
+    "perspective": 0.0,
+    "blur": 0.0,
+    "noise": 0.0,
+    "contrast": 1.0,
+    "illumination": 0.0,
+    "jpeg": None,
+}
+
+
+def _generate_svg(args: argparse.Namespace, bars: tuple[BarKind, ...], spec: RenderSpec) -> int:
+    """``generate --output code.svg``: the code in exact millimetres, without distortions."""
+    changed = [name for name, default in _RASTER_ONLY.items() if getattr(args, name) != default]
+    if changed:
+        options = ", ".join("--" + name.replace("_", "-") for name in changed)
+        return _fail(f"{options} only apply to raster output, not SVG", EXIT_USAGE)
+    output = Path(args.output)
+    if not output.parent.is_dir():
+        return _fail(f"output directory does not exist: {output.parent}", EXIT_INPUT)
+    document = render_svg(bars, spec, title=f"Pharmacode {args.value}")
+    try:
+        output.write_text(document, encoding="utf-8")
+    except OSError as exc:
+        return _fail(f"could not write {output}: {exc}", EXIT_INPUT)
+    border = spec.quiet_zone_mm + spec.margin_mm
+    widths = [spec.wide_mm if kind is BarKind.WIDE else spec.narrow_mm for kind in bars]
+    summary = {
+        "value": args.value,
+        "bars": [bar.value for bar in bars],
+        "output": str(args.output),
+        "width_mm": round(sum(widths) + spec.gap_mm * (len(bars) - 1) + 2 * border, 4),
+        "height_mm": round(spec.height_mm + 2 * border, 4),
+    }
+    print(json.dumps(summary))
     return EXIT_OK
 
 

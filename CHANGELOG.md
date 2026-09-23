@@ -25,6 +25,8 @@
   summary; it exits 9 (`EXIT_BATCH_FAILURES`) when any image did not decode cleanly.
 - `decode --debug-dir` (and `batch --debug-dir`, `DebugRecorder`) writes every pass's
   intermediate images, a panel per candidate with its ink profile, and `debug.json`.
+- `generate --output code.svg` (`render_svg`) writes the code as a vector in exact millimetres,
+  standard or `--miniature`, for printing at physical size.
 - Benchmark: a `patch` group (`inverted-auto`, `knockout-dark`), and every negative image is
   also decoded inverted, with `polarity="auto"`.
 

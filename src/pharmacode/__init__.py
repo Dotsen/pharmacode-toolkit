@@ -30,6 +30,7 @@ from pharmacode.rendering import (
     distort,
     render_bars,
     render_negative,
+    render_svg,
     render_value,
 )
 from pharmacode.segmentation import extract_bars_from_upright
@@ -74,6 +75,7 @@ __all__ = [
     "read_resolution",
     "render_bars",
     "render_negative",
+    "render_svg",
     "render_value",
     "save_image",
 ]

@@ -13,7 +13,7 @@ Render a synthetic Pharmacode image.
 | option | default | meaning |
 |---|---|---|
 | `--value INT` (required) | - | integer 3..131070 to encode |
-| `--output PATH` (required) | - | output PNG, JPEG or TIFF path |
+| `--output PATH` (required) | - | output PNG, JPEG or TIFF path, or an `.svg` path for a vector (see below) |
 | `--dpi FLOAT` | 300.0 | render resolution; must be positive |
 | `--miniature` | off | use the Laetus miniature dimensions instead of standard |
 | `--rotation FLOAT` | 0.0 | rotation in degrees, counter-clockwise |
@@ -32,6 +32,16 @@ On success it writes the image and prints a one-line JSON summary
 resolution is stored in the file (PNG `pHYs`, JPEG JFIF density, TIFF
 resolution tags; `--dpi` times `--scale-x` and `--scale-y`), so
 `decode --dpi auto` reads it back.
+
+With an `.svg` output, `generate` writes the code as a vector in exact
+millimetres instead: the document's `width` and `height` are in mm and one
+user unit is 1 mm, so it prints at its physical size, with the same layout
+as the raster (quiet zone and a 2 mm margin on every side) and no pixel
+rounding. `--dpi` does not apply; the raster distortions (`--rotation`,
+`--scale-x`, `--scale-y`, `--perspective`, `--blur`, `--noise`,
+`--contrast`, `--illumination`, `--jpeg`) are a usage error with SVG. The
+summary line then holds `value`, `bars`, `output`, `width_mm` and
+`height_mm`. In Python: `pharmacode.render_svg(bars, spec, title)`.
 
 ## `pharmacode decode`
 
