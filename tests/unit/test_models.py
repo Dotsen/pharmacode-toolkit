@@ -47,7 +47,13 @@ def test_result_serialises_to_contract() -> None:
     result = DecodeResult(ImageInfo("a.png", 640, 480, 300.0), (detection,), (error,))
     payload = json.loads(json.dumps(result.to_dict()))
     assert payload["version"]
-    assert payload["image"] == {"path": "a.png", "width": 640, "height": 480, "dpi": 300.0}
+    assert payload["image"] == {
+        "path": "a.png",
+        "width": 640,
+        "height": 480,
+        "dpi": 300.0,
+        "dpi_source": None,
+    }
     assert payload["detections"][0] == {
         "bbox": {"x": 10, "y": 20, "width": 300, "height": 80},
         "orientation_deg": 0.0,

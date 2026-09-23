@@ -4,7 +4,8 @@
     "path": "value_1234.png",
     "width": 208,
     "height": 141,
-    "dpi": 150.0
+    "dpi": 150.0,
+    "dpi_source": "given"
   },
   "detections": [
     {

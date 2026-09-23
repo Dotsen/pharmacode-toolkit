@@ -4,7 +4,8 @@
     "path": "value_12345_rotated_90.png",
     "width": 141,
     "height": 235,
-    "dpi": 150.0
+    "dpi": 150.0,
+    "dpi_source": "given"
   },
   "detections": [
     {

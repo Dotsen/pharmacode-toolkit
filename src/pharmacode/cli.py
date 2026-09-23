@@ -12,9 +12,9 @@ import numpy as np
 
 from pharmacode import __version__
 from pharmacode.encoding import encode
-from pharmacode.io import InputError, load_image, save_image
+from pharmacode.io import InputError, save_image
 from pharmacode.models import POLARITIES, DecoderConfig, DecodeResult, ErrorCode
-from pharmacode.pipeline import decode_image
+from pharmacode.pipeline import load_and_decode
 from pharmacode.rendering import Distortion, RenderSpec, distort, render_bars
 from pharmacode.visualization import annotate
 
@@ -30,6 +30,16 @@ EXIT_BENCHMARK_FAILED = 7
 def _fail(message: str, code: int) -> int:
     print(f"error: {message}", file=sys.stderr)
     return code
+
+
+def _dpi_argument(text: str) -> float | str:
+    """``--dpi`` of ``decode``: a number, or ``auto`` to read it from the file."""
+    if text == "auto":
+        return text
+    try:
+        return float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a number or 'auto', got {text!r}") from None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,7 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     decode = commands.add_parser("decode", help="find and decode Pharmacode in an image")
     decode.add_argument("input", help="PNG, JPEG or TIFF file")
-    decode.add_argument("--dpi", type=float, default=None, help="resolution for physical checks")
+    decode.add_argument(
+        "--dpi",
+        type=_dpi_argument,
+        default=None,
+        help="resolution for physical checks, or 'auto' to read it from the file",
+    )
     decode.add_argument("--json", default=None, help="write the result here instead of stdout")
     decode.add_argument("--annotated", default=None, help="write an annotated image here")
     decode.add_argument("--min-bars", type=int, default=2)
@@ -125,7 +140,7 @@ def run_generate(args: argparse.Namespace) -> int:
     if distortion != Distortion():
         image = distort(image, distortion, np.random.default_rng(args.seed))
     try:
-        save_image(args.output, image)
+        save_image(args.output, image, dpi=(args.dpi * args.scale_x, args.dpi * args.scale_y))
     except InputError as exc:
         return _fail(str(exc), EXIT_INPUT)
     print(
@@ -155,25 +170,28 @@ def exit_code_for(result: DecodeResult) -> int:
 
 
 def run_decode(args: argparse.Namespace) -> int:
-    if args.dpi is not None and args.dpi <= 0:
+    auto_dpi = args.dpi == "auto"
+    if not auto_dpi and args.dpi is not None and args.dpi <= 0:
         return _fail("--dpi must be positive", EXIT_USAGE)
     if not 2 <= args.min_bars <= args.max_bars <= 16:
         return _fail("--min-bars and --max-bars must satisfy 2 <= min <= max <= 16", EXIT_USAGE)
     if not 0.0 <= args.min_confidence <= 1.0:
         return _fail("--min-confidence must be between 0.0 and 1.0", EXIT_USAGE)
-    try:
-        image = load_image(args.input)
-    except InputError as exc:
-        return _fail(str(exc), EXIT_INPUT)
     config = DecoderConfig(
-        dpi=args.dpi,
+        dpi=None if auto_dpi else args.dpi,
         min_bars=args.min_bars,
         max_bars=args.max_bars,
         allow_truncated_quiet_zone=args.allow_cropped_quiet_zone,
         min_confidence=args.min_confidence,
         polarity=args.polarity,
     )
-    result = decode_image(image, config, path=str(args.input))
+    try:
+        result, image, resolution = load_and_decode(args.input, config, auto_dpi)
+    except InputError as exc:
+        return _fail(str(exc), EXIT_INPUT)
+    if resolution is not None and resolution.dpi is None:
+        reason = resolution.note or "the file stores no resolution"
+        print(f"note: --dpi auto: {reason}; decoding without DPI", file=sys.stderr)
     payload = json.dumps(result.to_dict(), indent=2)
     if args.json:
         try:

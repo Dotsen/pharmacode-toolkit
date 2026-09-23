@@ -26,8 +26,11 @@
   falls back to a multiple of the thickest bar) and may be rejected as one
   inconsistent group when another code lies closer than that.
 - **Tilts beyond ±5 degrees are outside the tested range.**
-- **DPI is never read from file or image metadata.** Pass `--dpi` explicitly
-  whenever you know the resolution.
+- **DPI is read from the file only with `--dpi auto`, and never from a camera
+  photo.** A photo's stored resolution does not describe the photographed
+  object, so `auto` ignores it (see [cli.md](cli.md#dpi-from-the-file));
+  without a number, a photo is decoded without the physical checks. A scan
+  whose software writes a wrong resolution is taken at its word.
 - **Very small codes are not supported:** bars shorter than about 8 px, or
   narrower than about 2 px, fall below the component filters and are ignored.
 - **Degradation beyond the benchmarked range is untested:** JPEG quality

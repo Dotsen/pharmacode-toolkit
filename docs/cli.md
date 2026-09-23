@@ -28,7 +28,10 @@ Render a synthetic Pharmacode image.
 | `--seed INT` | 0 | seed for every random distortion above |
 
 On success it writes the image and prints a one-line JSON summary
-(`value`, `bars`, `output`, `width`, `height`, `dpi`) to stdout.
+(`value`, `bars`, `output`, `width`, `height`, `dpi`) to stdout. The
+resolution is stored in the file (PNG `pHYs`, JPEG JFIF density, TIFF
+resolution tags; `--dpi` times `--scale-x` and `--scale-y`), so
+`decode --dpi auto` reads it back.
 
 ## `pharmacode decode`
 
@@ -37,7 +40,7 @@ Find and decode every Pharmacode in an image.
 | option | default | meaning |
 |---|---|---|
 | `input` (positional, required) | - | PNG, JPEG or TIFF file to read |
-| `--dpi FLOAT` | none | resolution in DPI; enables the physical checks (see [algorithm.md](algorithm.md)) |
+| `--dpi FLOAT\|auto` | none | resolution in DPI; enables the physical checks (see [algorithm.md](algorithm.md)). `auto` reads it from the file (see [below](#dpi-from-the-file)) and decodes without DPI, with a `note:` on stderr, when the file has no usable value |
 | `--json PATH` | none | write the JSON result here instead of stdout |
 | `--annotated PATH` | none | also write an annotated copy of the image here |
 | `--min-bars INT` | 2 | reject candidates with fewer bars than this (2..16) |
@@ -48,6 +51,30 @@ Find and decode every Pharmacode in an image.
 
 `--min-bars` and `--max-bars` must satisfy `2 <= min-bars <= max-bars <= 16`.
 `--min-confidence` must be between 0.0 and 1.0.
+
+### DPI from the file
+
+`--dpi auto` (`decode_file(..., auto_dpi=True)` in Python,
+`pharmacode.metadata.read_resolution` on its own) reads, in this order:
+
+- PNG: the `pHYs` chunk, when its unit is the metre;
+- JPEG: the JFIF density, when its unit is the inch or the centimetre, else
+  the EXIF `XResolution`/`YResolution`/`ResolutionUnit` tags;
+- TIFF: the same three tags of the first image.
+
+The value is ignored — and `note:` on stderr says why — when:
+
+- the file carries camera exposure data (EXIF `ExposureTime`, `FNumber` or
+  `FocalLength`): a camera writes a fixed 72, 180, 300 or 350 DPI that says
+  nothing about how large the photographed package appears;
+- it is below 100 DPI: there a nominal 0.5 mm narrow bar is under 2 px,
+  which the decoder does not support, so the value is a software default
+  (72 or 96 DPI) rather than a scan resolution;
+- the horizontal and vertical resolutions differ by more than 1%.
+
+So `auto` suits scans and generated images. For a photo, measure the
+resolution instead (for example, photograph a ruler at the same distance)
+and pass it as a number, or decode without `--dpi`.
 
 ## `pharmacode benchmark`
 
@@ -78,12 +105,14 @@ checks the report against `--min-correct` and `--max-false-positives` (see
     "path": "value_1234.png",
     "width": 208,
     "height": 141,
-    "dpi": 150.0
+    "dpi": 150.0,
+    "dpi_source": "given"
   },
   "detections": [
     {
       "bbox": { "x": 5, "y": 23, "width": 197, "height": 94 },
       "orientation_deg": 0.0,
+      "polarity": "dark",
       "bars": ["narrow", "narrow", "wide", "wide", "narrow", "wide", "narrow", "narrow", "wide", "wide"],
       "bar_widths_px": [3, 3, 9, 9, 3, 9, 3, 3, 9, 9],
       "value": 1234,
@@ -95,6 +124,10 @@ checks the report against `--min-correct` and `--max-false-positives` (see
   "errors": []
 }
 ```
+
+`image.dpi_source` says where `image.dpi` came from: `"given"` (`--dpi`
+with a number), `"png-phys"`, `"jpeg-jfif"`, `"exif"` or `"tiff"` (read
+by `--dpi auto`), or `null` when decoding ran without DPI.
 
 `errors` is a list of `{"code", "message", "bbox"}` objects (`bbox` is `null`
 for `NO_CANDIDATES`, which has no candidate to attach to); see

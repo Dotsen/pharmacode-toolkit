@@ -10,6 +10,10 @@
 - A code on a light patch inside a dark area (a white knockout on a dark carton, or an
   inverted code) decodes when the patch leaves less than 11 mm around it: the patch edge now
   ends the quiet zone instead of being read as one more bar.
+- `decode --dpi auto` (`decode_file(..., auto_dpi=True)`, `read_resolution`) takes the DPI
+  from PNG `pHYs`, JPEG JFIF/EXIF or TIFF metadata; it ignores camera photos, values below
+  100 DPI and unequal horizontal/vertical resolutions. The JSON `image` reports `dpi_source`.
+- `generate` stores the DPI in the image file; `save_image` takes an optional `dpi`.
 - Benchmark: a `patch` group (`inverted-auto`, `knockout-dark`), and every negative image is
   also decoded inverted, with `polarity="auto"`.
 

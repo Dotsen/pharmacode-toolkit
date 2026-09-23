@@ -47,6 +47,7 @@ pharmacode generate --value 12345 --dpi 300 --output sample.png
 pharmacode decode sample.png --dpi 300
 pharmacode decode sample.png --dpi 300 --json result.json --annotated result.png
 pharmacode decode sample.png --dpi 300 --min-confidence 0.8
+pharmacode decode sample.png --dpi auto    # the DPI generate stored in the file
 ```
 
 `python -m pharmacode ...` works the same as the `pharmacode` command above,
@@ -67,12 +68,13 @@ for code in result.detections:
 8-bit grayscale or colour PNG, JPEG and TIFF; dark bars on a light background
 (or light on dark with `--polarity light` or `auto`); codes upright, rotated by multiples of 90 degrees, or tilted a few degrees.
 Pass `--dpi` whenever you know the resolution: it enables physical checks and
-reliable classification of codes that use a single bar width.
+reliable classification of codes that use a single bar width. `--dpi auto`
+takes it from a scan's or a generated image's metadata.
 
 ## Limitations
 
 See [docs/limitations.md](https://github.com/Dotsen/pharmacode-toolkit/blob/main/docs/limitations.md). In short: no two-track or colour
-Pharmacode, no DPI from file metadata. Thresholds come from the
+Pharmacode, and no DPI from a camera photo's metadata. Thresholds come from the
 specification and a synthetic benchmark; on top of that the decoder is checked
 against real-world sample images (codes as they appear in the wild: with captions,
 tightly cropped, with a rule drawn across the bars, inside a chart of symbologies).
