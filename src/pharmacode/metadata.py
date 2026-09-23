@@ -10,7 +10,8 @@ image. A camera photo also carries one (72, 180, 300 or 350 DPI, depending
 on the maker), but it is a print hint unrelated to how many pixels a
 millimetre of the photographed package covers. So the value is ignored when
 the file carries camera exposure data (EXIF ``ExposureTime``, ``FNumber`` or
-``FocalLength``), when it is below :data:`MIN_TRUSTED_DPI`, and when the
+``FocalLength``), when it is below :data:`MIN_TRUSTED_DPI` or above
+:data:`MAX_TRUSTED_DPI`, and when the
 horizontal and vertical resolutions differ.
 """
 
@@ -25,6 +26,10 @@ from pathlib import Path
 # decoder does not support (see docs/limitations.md). Such a value is almost
 # always a software default (72 or 96 DPI) rather than a real scan resolution.
 MIN_TRUSTED_DPI = 100.0
+# Above this, a stored value is not a real scan resolution (flatbed scanners resolve at most
+# 4800 DPI optically), and the decoder's kernels, sized in mm, would need absurd amounts of
+# memory: a file claiming 10^8 DPI would otherwise exhaust it.
+MAX_TRUSTED_DPI = 4800.0
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _MM_PER_INCH = 25.4
@@ -113,6 +118,12 @@ def _judge(found: _Found | None, camera: bool) -> Resolution:
             "a stored resolution is a software default, not a scan resolution",
         )
     # one decimal absorbs the PNG pixels-per-metre rounding (150 DPI is stored as 150.0124)
+    if found.x > MAX_TRUSTED_DPI:
+        return Resolution(
+            None,
+            note=f"ignored {_dpi(found.x)} DPI ({found.source}): above {MAX_TRUSTED_DPI:g} DPI, "
+            "no scanner resolves that",
+        )
     return Resolution(round(found.x, 1), found.source)
 
 

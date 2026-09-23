@@ -59,4 +59,7 @@ def save_image(
     data = buffer.tobytes()
     if xy is not None:
         data = with_resolution(data, suffix, xy)
-    file.write_bytes(data)
+    try:
+        file.write_bytes(data)
+    except OSError as exc:
+        raise InputError(f"could not write {file}: {exc}") from exc
