@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pharmacode.debug import DebugRecorder
 from pharmacode.decoding import decode_bars
 from pharmacode.detection import find_candidates
 from pharmacode.encoding import MAX_BARS, MAX_VALUE, MIN_BARS, MIN_VALUE, bars_to_value, encode
@@ -44,6 +45,7 @@ __all__ = [
     "BarKind",
     "BarSequence",
     "BoundingBox",
+    "DebugRecorder",
     "DecodeError",
     "DecodedPharmacode",
     "DecodeResult",

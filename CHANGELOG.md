@@ -20,6 +20,11 @@
 - `decode --report-geometry` adds each detection's measured bar, gap and quiet-zone sizes, in
   mm with a DPI, and lists what falls outside the Laetus standard or miniature tolerances
   (`pharmacode.geometry.geometry_report`).
+- `pharmacode batch` decodes files, directories and glob patterns, in parallel with `--jobs`,
+  into JSON Lines (one `decode` result per image, with its `exit_code`) and an optional CSV
+  summary; it exits 9 (`EXIT_BATCH_FAILURES`) when any image did not decode cleanly.
+- `decode --debug-dir` (and `batch --debug-dir`, `DebugRecorder`) writes every pass's
+  intermediate images, a panel per candidate with its ink profile, and `debug.json`.
 - Benchmark: a `patch` group (`inverted-auto`, `knockout-dark`), and every negative image is
   also decoded inverted, with `polarity="auto"`.
 

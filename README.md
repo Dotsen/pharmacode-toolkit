@@ -30,6 +30,8 @@ barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
 - Writes a JSON result with stable error codes and an annotated image; optionally checks
   the code against an expected value and reports bar, gap and quiet-zone sizes in mm
   against the Laetus tolerances.
+- Decodes whole directories in parallel into JSON Lines and CSV, and shows every
+  intermediate step of a decode for diagnosis.
 - Ships a benchmark that reports a matrix of conditions, not one number.
 
 ## Install
@@ -52,6 +54,8 @@ pharmacode decode sample.png --dpi 300 --min-confidence 0.8
 pharmacode decode sample.png --dpi auto    # the DPI generate stored in the file
 pharmacode decode sample.png --dpi 300 --expect 12345      # exit 0 only if it reads 12345
 pharmacode decode sample.png --dpi 300 --report-geometry   # sizes in mm vs Laetus tolerances
+pharmacode decode photo.jpg --debug-dir debug/              # every intermediate step, to see why
+pharmacode batch scans/ --dpi auto --jsonl out.jsonl --csv out.csv --jobs 4
 ```
 
 `python -m pharmacode ...` works the same as the `pharmacode` command above,

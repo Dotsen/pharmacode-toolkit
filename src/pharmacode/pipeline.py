@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from pharmacode.debug import DebugRecorder
 from pharmacode.decoding import decode_bars
 from pharmacode.detection import estimate_stroke_px_past_crossing_lines, find_candidates
 from pharmacode.imageops import flatten_background, otsu_mask
@@ -28,6 +29,7 @@ def decode_image(
     config: DecoderConfig | None = None,
     path: str | None = None,
     dpi_source: str | None = None,
+    debug: DebugRecorder | None = None,
 ) -> DecodeResult:
     """Detect, segment and decode every Pharmacode in ``image`` (gray or BGR uint8).
 
@@ -39,7 +41,9 @@ def decode_image(
     pass found no candidate at all and the light pass did.
 
     ``dpi_source`` is reported as ``image.dpi_source``; it defaults to
-    ``"given"`` whenever ``config.dpi`` is set.
+    ``"given"`` whenever ``config.dpi`` is set. A ``debug`` recorder collects
+    every pass's intermediate images and measurements (see
+    :class:`pharmacode.debug.DebugRecorder`).
     """
     config = DecoderConfig() if config is None else config
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
@@ -52,11 +56,11 @@ def decode_image(
         error = DecodeError(ErrorCode.NO_CANDIDATES, "image is empty")
         return DecodeResult(info, (), (error,))
     if config.polarity == "light":
-        return _decode_pass(255 - gray, config, info, "light")
-    dark = _decode_pass(gray, config, info, "dark")
+        return _decode_pass(255 - gray, config, info, "light", debug)
+    dark = _decode_pass(gray, config, info, "dark", debug)
     if config.polarity == "dark" or dark.detections:
         return dark
-    light = _decode_pass(255 - gray, config, info, "light")
+    light = _decode_pass(255 - gray, config, info, "light", debug)
     if light.detections or (_found_nothing(dark) and not _found_nothing(light)):
         return light
     return dark
@@ -67,7 +71,10 @@ def _found_nothing(result: DecodeResult) -> bool:
 
 
 def decode_file(
-    path: str | Path, config: DecoderConfig | None = None, auto_dpi: bool = False
+    path: str | Path,
+    config: DecoderConfig | None = None,
+    auto_dpi: bool = False,
+    debug: DebugRecorder | None = None,
 ) -> DecodeResult:
     """Load ``path`` and decode it; raises :class:`pharmacode.io.InputError` if unreadable.
 
@@ -75,11 +82,14 @@ def decode_file(
     :func:`pharmacode.metadata.read_resolution`) replaces ``config.dpi``;
     when the file has no usable value, ``config.dpi`` is kept as a fallback.
     """
-    return load_and_decode(path, config, auto_dpi)[0]
+    return load_and_decode(path, config, auto_dpi, debug)[0]
 
 
 def load_and_decode(
-    path: str | Path, config: DecoderConfig | None = None, auto_dpi: bool = False
+    path: str | Path,
+    config: DecoderConfig | None = None,
+    auto_dpi: bool = False,
+    debug: DebugRecorder | None = None,
 ) -> tuple[DecodeResult, np.ndarray, Resolution | None]:
     """:func:`decode_file`, also returning the loaded image and, with ``auto_dpi``, what
     was read from the file's metadata."""
@@ -95,11 +105,15 @@ def load_and_decode(
         if resolution.dpi is not None:
             config = config.with_updates(dpi=resolution.dpi)
             source = resolution.source
-    return decode_image(image, config, str(path), source), image, resolution
+    return decode_image(image, config, str(path), source, debug), image, resolution
 
 
 def _decode_pass(
-    gray: np.ndarray, config: DecoderConfig, info: ImageInfo, polarity: str
+    gray: np.ndarray,
+    config: DecoderConfig,
+    info: ImageInfo,
+    polarity: str,
+    debug: DebugRecorder | None = None,
 ) -> DecodeResult:
     """One pass over an image whose bars are dark; ``polarity`` labels the detections."""
     dpi_floor_px = 0
@@ -111,13 +125,15 @@ def _decode_pass(
     min_kernel_px = max(dpi_floor_px, stroke_floor_px)
     flat = flatten_background(gray, config.background_kernel_fraction, min_kernel_px)
     candidates = find_candidates(flat, config)
+    outcomes = [extract_bars(flat, candidate, config, gray.shape) for candidate in candidates]
+    if debug is not None:
+        debug.record_pass(polarity, gray, flat, candidates, outcomes, config, min_kernel_px)
     if not candidates:
         error = DecodeError(ErrorCode.NO_CANDIDATES, "no group of aligned bars found")
         return DecodeResult(info, (), (error,))
     detections: list[DecodedPharmacode] = []
     errors: list[DecodeError] = []
-    for candidate in candidates:
-        sequence = extract_bars(flat, candidate, config, gray.shape)
+    for candidate, sequence in zip(candidates, outcomes, strict=True):
         if isinstance(sequence, DecodeError):
             errors.append(sequence)
             continue
