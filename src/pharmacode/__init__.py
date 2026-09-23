@@ -6,6 +6,7 @@ from pharmacode.decoding import decode_bars
 from pharmacode.detection import find_candidates
 from pharmacode.encoding import MAX_BARS, MAX_VALUE, MIN_BARS, MIN_VALUE, bars_to_value, encode
 from pharmacode.io import InputError, load_image, save_image
+from pharmacode.metadata import Resolution, read_resolution
 from pharmacode.models import (
     BarKind,
     BarSequence,
@@ -18,7 +19,7 @@ from pharmacode.models import (
     ErrorCode,
     ImageInfo,
 )
-from pharmacode.pipeline import decode_image
+from pharmacode.pipeline import decode_file, decode_image
 from pharmacode.rendering import (
     NEGATIVE_KINDS,
     Distortion,
@@ -53,17 +54,20 @@ __all__ = [
     "InputError",
     "NEGATIVE_KINDS",
     "RenderSpec",
+    "Resolution",
     "__version__",
     "annotate",
     "bars_to_value",
     "compose_scene",
     "decode_bars",
+    "decode_file",
     "decode_image",
     "distort",
     "encode",
     "extract_bars_from_upright",
     "find_candidates",
     "load_image",
+    "read_resolution",
     "render_bars",
     "render_negative",
     "render_value",

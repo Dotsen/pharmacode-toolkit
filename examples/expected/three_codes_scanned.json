@@ -4,7 +4,8 @@
     "path": "three_codes_scanned.png",
     "width": 900,
     "height": 520,
-    "dpi": 150.0
+    "dpi": 150.0,
+    "dpi_source": "given"
   },
   "detections": [
     {

@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 
 from pharmacode.decoding import decode_bars
 from pharmacode.detection import estimate_stroke_px_past_crossing_lines, find_candidates
 from pharmacode.imageops import flatten_background, otsu_mask
+from pharmacode.io import load_image
+from pharmacode.metadata import Resolution, read_resolution
 from pharmacode.models import (
     DecodedPharmacode,
     DecodeError,
@@ -20,7 +24,10 @@ from pharmacode.segmentation import extract_bars
 
 
 def decode_image(
-    image: np.ndarray, config: DecoderConfig | None = None, path: str | None = None
+    image: np.ndarray,
+    config: DecoderConfig | None = None,
+    path: str | None = None,
+    dpi_source: str | None = None,
 ) -> DecodeResult:
     """Detect, segment and decode every Pharmacode in ``image`` (gray or BGR uint8).
 
@@ -30,10 +37,17 @@ def decode_image(
     single pass and keeps exactly the result of ``"dark"``. When neither pass
     decodes anything, ``"auto"`` reports the dark pass's errors, unless the dark
     pass found no candidate at all and the light pass did.
+
+    ``dpi_source`` is reported as ``image.dpi_source``; it defaults to
+    ``"given"`` whenever ``config.dpi`` is set.
     """
     config = DecoderConfig() if config is None else config
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-    info = ImageInfo(path, int(gray.shape[1]), int(gray.shape[0]), config.dpi)
+    if config.dpi is None:
+        dpi_source = None
+    elif dpi_source is None:
+        dpi_source = "given"
+    info = ImageInfo(path, int(gray.shape[1]), int(gray.shape[0]), config.dpi, dpi_source)
     if gray.size == 0:
         error = DecodeError(ErrorCode.NO_CANDIDATES, "image is empty")
         return DecodeResult(info, (), (error,))
@@ -50,6 +64,38 @@ def decode_image(
 
 def _found_nothing(result: DecodeResult) -> bool:
     return any(error.code is ErrorCode.NO_CANDIDATES for error in result.errors)
+
+
+def decode_file(
+    path: str | Path, config: DecoderConfig | None = None, auto_dpi: bool = False
+) -> DecodeResult:
+    """Load ``path`` and decode it; raises :class:`pharmacode.io.InputError` if unreadable.
+
+    With ``auto_dpi``, the resolution stored in the file (see
+    :func:`pharmacode.metadata.read_resolution`) replaces ``config.dpi``;
+    when the file has no usable value, ``config.dpi`` is kept as a fallback.
+    """
+    return load_and_decode(path, config, auto_dpi)[0]
+
+
+def load_and_decode(
+    path: str | Path, config: DecoderConfig | None = None, auto_dpi: bool = False
+) -> tuple[DecodeResult, np.ndarray, Resolution | None]:
+    """:func:`decode_file`, also returning the loaded image and, with ``auto_dpi``, what
+    was read from the file's metadata."""
+    config = DecoderConfig() if config is None else config
+    image = load_image(path)
+    resolution = None
+    source = None
+    if auto_dpi:
+        try:
+            resolution = read_resolution(path)
+        except OSError:
+            resolution = Resolution(None)
+        if resolution.dpi is not None:
+            config = config.with_updates(dpi=resolution.dpi)
+            source = resolution.source
+    return decode_image(image, config, str(path), source), image, resolution
 
 
 def _decode_pass(

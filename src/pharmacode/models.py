@@ -136,13 +136,24 @@ class DecodeError:
 
 @dataclass(frozen=True)
 class ImageInfo:
+    """The decoded image. ``dpi_source`` says where ``dpi`` came from: ``"given"`` by the
+    caller, or read from the file (``"png-phys"``, ``"jpeg-jfif"``, ``"exif"``, ``"tiff"``);
+    ``None`` when there is no DPI."""
+
     path: str | None
     width: int
     height: int
     dpi: float | None
+    dpi_source: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {"path": self.path, "width": self.width, "height": self.height, "dpi": self.dpi}
+        return {
+            "path": self.path,
+            "width": self.width,
+            "height": self.height,
+            "dpi": self.dpi,
+            "dpi_source": self.dpi_source,
+        }
 
 
 @dataclass(frozen=True)

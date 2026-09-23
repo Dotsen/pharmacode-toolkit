@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-import numpy as np
+from pathlib import Path
 
+import numpy as np
+import pytest
+
+from pharmacode.io import InputError, save_image
 from pharmacode.models import DecoderConfig, ErrorCode
-from pharmacode.pipeline import decode_image
+from pharmacode.pipeline import decode_file, decode_image
 from pharmacode.rendering import Distortion, RenderSpec, distort, render_value
 
 
@@ -64,3 +68,24 @@ def test_decode_image_min_confidence_downgrades_a_weak_detection_to_an_error() -
 
     clean = decode_image(render_value(1234), DecoderConfig(dpi=300.0, min_confidence=0.9))
     assert clean.detections and clean.detections[0].value == 1234
+
+
+def test_decode_file_auto_dpi_prefers_the_file_and_falls_back_to_config(tmp_path: Path) -> None:
+    stored = tmp_path / "stored.png"
+    plain = tmp_path / "plain.png"
+    save_image(stored, render_value(1234), 300.0)
+    save_image(plain, render_value(1234))
+    fallback = DecoderConfig(dpi=250.0)
+    from_file = decode_file(stored, fallback, auto_dpi=True)
+    assert (from_file.image.dpi, from_file.image.dpi_source) == (300.0, "png-phys")
+    assert from_file.image.path == str(stored)
+    kept = decode_file(plain, fallback, auto_dpi=True)
+    assert (kept.image.dpi, kept.image.dpi_source) == (250.0, "given")
+    ignored = decode_file(stored, fallback)
+    assert (ignored.image.dpi, ignored.image.dpi_source) == (250.0, "given")
+    assert decode_file(plain).image.dpi_source is None
+
+
+def test_decode_file_raises_input_error_for_a_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(InputError):
+        decode_file(tmp_path / "missing.png")

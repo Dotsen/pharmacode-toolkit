@@ -215,3 +215,42 @@ def test_decode_rejects_unknown_polarity(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as raised:
         main(["decode", str(target), "--polarity", "inverse"])
     assert raised.value.code == EXIT_USAGE
+
+
+def test_generate_stores_dpi_that_decode_auto_reads(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "all-narrow.png"
+    assert main(["generate", "--value", "65535", "--dpi", "300", "--output", str(target)]) == 0
+    capsys.readouterr()
+    assert main(["decode", str(target), "--dpi", "auto"]) == EXIT_OK
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["image"]["dpi"] == 300.0 and payload["image"]["dpi_source"] == "png-phys"
+    detection = payload["detections"][0]
+    assert detection["value"] == 65535
+    assert "single_width_class_no_dpi" not in detection["warnings"]
+    assert captured.err == ""
+
+
+def test_decode_auto_dpi_without_metadata_notes_it_and_decodes(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "plain.png"
+    save_image(target, render_value(1234))
+    assert main(["decode", str(target), "--dpi", "auto"]) == EXIT_OK
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["image"]["dpi"] is None
+    assert "note: --dpi auto" in captured.err
+
+
+def test_decode_given_dpi_is_reported_as_given(tmp_path: Path, capsys) -> None:
+    target = tmp_path / "code.png"
+    save_image(target, render_value(1234), 600.0)
+    assert main(["decode", str(target), "--dpi", "300"]) == EXIT_OK
+    image = json.loads(capsys.readouterr().out)["image"]
+    assert (image["dpi"], image["dpi_source"]) == (300.0, "given")
+
+
+def test_decode_rejects_a_dpi_that_is_neither_a_number_nor_auto(tmp_path: Path) -> None:
+    target = tmp_path / "code.png"
+    save_image(target, render_value(1234))
+    with pytest.raises(SystemExit) as raised:
+        main(["decode", str(target), "--dpi", "high"])
+    assert raised.value.code == EXIT_USAGE

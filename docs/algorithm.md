@@ -93,6 +93,9 @@ bounding boxes refer to the original image either way.
 1. **load** — `pharmacode.io.load_image` reads a PNG, JPEG or TIFF file into
    an 8-bit grayscale array (the CLI's `decode` command does this before
    calling the library; callers passing an array directly skip it).
+   `pipeline.decode_file` loads and decodes in one call and, with
+   `auto_dpi`, takes `dpi` from the file's metadata
+   (`metadata.read_resolution`, see [cli.md](cli.md#dpi-from-the-file)).
 2. **flatten background** — `imageops.flatten_background` divides the image
    by a morphological-closing estimate of the paper, removing illumination
    gradients and uneven lighting so ink reads as near-black everywhere. The
