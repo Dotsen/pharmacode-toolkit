@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The package ships a `py.typed` marker (PEP 561), so type checkers use its annotations.
+- CI also tests Python 3.13, which the package metadata already declared.
+
 ## 0.2.1 - 2026-09-20
 
 - Documentation describes the real-world sample check made before each release.
