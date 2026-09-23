@@ -27,7 +27,9 @@ barcodes in PNG, JPEG and TIFF images. Pure Python on numpy and OpenCV.
   dark on light or, with `--polarity light` or `auto`, light on dark.
 - Classifies bars, checks quiet zones and geometry, and reports **both** reading
   directions, because the format has no start or stop pattern.
-- Writes a JSON result with stable error codes and an annotated image.
+- Writes a JSON result with stable error codes and an annotated image; optionally checks
+  the code against an expected value and reports bar, gap and quiet-zone sizes in mm
+  against the Laetus tolerances.
 - Ships a benchmark that reports a matrix of conditions, not one number.
 
 ## Install
@@ -48,6 +50,8 @@ pharmacode decode sample.png --dpi 300
 pharmacode decode sample.png --dpi 300 --json result.json --annotated result.png
 pharmacode decode sample.png --dpi 300 --min-confidence 0.8
 pharmacode decode sample.png --dpi auto    # the DPI generate stored in the file
+pharmacode decode sample.png --dpi 300 --expect 12345      # exit 0 only if it reads 12345
+pharmacode decode sample.png --dpi 300 --report-geometry   # sizes in mm vs Laetus tolerances
 ```
 
 `python -m pharmacode ...` works the same as the `pharmacode` command above,

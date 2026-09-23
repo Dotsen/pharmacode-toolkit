@@ -103,9 +103,22 @@ class DecodedPharmacode:
     warnings: tuple[str, ...] = ()
     bar_rects: tuple[BarRect, ...] = ()  # geometry for annotation; not part of the JSON contract
     polarity: str = "dark"  # "dark": dark bars on light; "light": light bars on dark
+    # measurements behind the geometry report (pharmacode.geometry); in the JSON only on request
+    gap_widths_px: tuple[int, ...] = ()
+    quiet_zone_px: tuple[int, int] = (0, 0)
+    bar_height_px: int | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
+    def reading_of(self, value: int) -> str | None:
+        """``"value"`` or ``"mirror"``: which reading of this code equals ``value``, if any."""
+        if value == self.value:
+            return "value"
+        if value == self.mirror_value:
+            return "mirror"
+        return None
+
+    def to_dict(self, dpi: float | None = None, include_geometry: bool = False) -> dict[str, Any]:
+        """The JSON contract; ``include_geometry`` adds ``geometry`` (measured at ``dpi``)."""
+        payload = {
             "bbox": self.bbox.to_dict(),
             "orientation_deg": round(float(self.orientation_deg), 2),
             "polarity": self.polarity,
@@ -116,6 +129,11 @@ class DecodedPharmacode:
             "confidence": round(float(self.confidence), 3),
             "warnings": list(self.warnings),
         }
+        if include_geometry:
+            from pharmacode.geometry import geometry_report
+
+            payload["geometry"] = geometry_report(self, dpi)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -168,13 +186,24 @@ class DecodeResult:
     def ok(self) -> bool:
         return bool(self.detections) and not self.errors
 
-    def to_dict(self) -> dict[str, Any]:
+    def matches(self, value: int) -> list[tuple[int, str]]:
+        """``(detection index, "value" or "mirror")`` for every detection that reads ``value``."""
+        found = []
+        for index, detection in enumerate(self.detections):
+            reading = detection.reading_of(value)
+            if reading is not None:
+                found.append((index, reading))
+        return found
+
+    def to_dict(self, include_geometry: bool = False) -> dict[str, Any]:
+        """The JSON contract; ``include_geometry`` adds each detection's ``geometry``."""
         from pharmacode import __version__
 
+        dpi = self.image.dpi
         return {
             "version": __version__,
             "image": self.image.to_dict(),
-            "detections": [d.to_dict() for d in self.detections],
+            "detections": [d.to_dict(dpi, include_geometry) for d in self.detections],
             "errors": [e.to_dict() for e in self.errors],
         }
 

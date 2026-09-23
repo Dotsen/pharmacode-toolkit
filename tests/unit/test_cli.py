@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from pharmacode.cli import (
+    EXIT_EXPECTATION_FAILED,
     EXIT_INPUT,
     EXIT_NO_CANDIDATES,
     EXIT_OK,
@@ -254,3 +255,51 @@ def test_decode_rejects_a_dpi_that_is_neither_a_number_nor_auto(tmp_path: Path) 
     with pytest.raises(SystemExit) as raised:
         main(["decode", str(target), "--dpi", "high"])
     assert raised.value.code == EXIT_USAGE
+
+
+def _code_file(tmp_path: Path, value: int = 1234) -> Path:
+    target = tmp_path / f"{value}.png"
+    save_image(target, render_value(value), 300.0)
+    return target
+
+
+def test_decode_expect_matches_either_reading(tmp_path: Path, capsys) -> None:
+    target = _code_file(tmp_path)
+    assert main(["decode", str(target), "--dpi", "300", "--expect", "1234"]) == EXIT_OK
+    expected = json.loads(capsys.readouterr().out)["expected"]
+    assert expected == {
+        "value": 1234,
+        "matched": True,
+        "matches": [{"detection": 0, "reading": "value"}],
+    }
+    assert main(["decode", str(target), "--dpi", "300", "--expect", "1835"]) == EXIT_OK
+    assert json.loads(capsys.readouterr().out)["expected"]["matches"][0]["reading"] == "mirror"
+
+
+def test_decode_expect_mismatch_exits_8_with_the_json(tmp_path: Path, capsys) -> None:
+    target = _code_file(tmp_path)
+    assert main(["decode", str(target), "--expect", "1235"]) == EXIT_EXPECTATION_FAILED
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["expected"] == {"value": 1235, "matched": False, "matches": []}
+    assert payload["detections"][0]["value"] == 1234
+
+
+def test_decode_expect_on_an_image_without_codes_exits_8(tmp_path: Path) -> None:
+    target = tmp_path / "blank.png"
+    save_image(target, np.full((200, 300), 255, dtype=np.uint8))
+    assert main(["decode", str(target), "--expect", "1234"]) == EXIT_EXPECTATION_FAILED
+
+
+@pytest.mark.parametrize("value", ["2", "131071"])
+def test_decode_expect_out_of_range_is_a_usage_error(tmp_path: Path, value: str) -> None:
+    assert main(["decode", str(_code_file(tmp_path)), "--expect", value]) == EXIT_USAGE
+
+
+def test_decode_report_geometry(tmp_path: Path, capsys) -> None:
+    target = _code_file(tmp_path)
+    assert main(["decode", str(target), "--dpi", "auto", "--report-geometry"]) == EXIT_OK
+    geometry = json.loads(capsys.readouterr().out)["detections"][0]["geometry"]
+    assert geometry["variant"] == "standard"
+    assert geometry["bar_widths_mm"][0] == pytest.approx(0.5, abs=0.1)
+    assert main(["decode", str(target), "--dpi", "300"]) == EXIT_OK
+    assert "geometry" not in json.loads(capsys.readouterr().out)["detections"][0]

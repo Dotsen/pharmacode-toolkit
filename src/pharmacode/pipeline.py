@@ -146,6 +146,9 @@ def _decode_pass(
                 warnings=sequence.warnings,
                 bar_rects=rects,
                 polarity=polarity,
+                gap_widths_px=sequence.gap_widths_px,
+                quiet_zone_px=sequence.quiet_zone_px,
+                bar_height_px=sequence.bar_height_px,
             )
         )
     return DecodeResult(info, tuple(detections), tuple(errors))
