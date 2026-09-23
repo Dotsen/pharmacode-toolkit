@@ -5,6 +5,7 @@ from __future__ import annotations
 from pharmacode.decoding import decode_bars
 from pharmacode.detection import find_candidates
 from pharmacode.encoding import MAX_BARS, MAX_VALUE, MIN_BARS, MIN_VALUE, bars_to_value, encode
+from pharmacode.geometry import geometry_report
 from pharmacode.io import InputError, load_image, save_image
 from pharmacode.metadata import Resolution, read_resolution
 from pharmacode.models import (
@@ -66,6 +67,7 @@ __all__ = [
     "encode",
     "extract_bars_from_upright",
     "find_candidates",
+    "geometry_report",
     "load_image",
     "read_resolution",
     "render_bars",

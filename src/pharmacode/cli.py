@@ -7,11 +7,12 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from pharmacode import __version__
-from pharmacode.encoding import encode
+from pharmacode.encoding import MAX_VALUE, MIN_VALUE, encode
 from pharmacode.io import InputError, save_image
 from pharmacode.models import POLARITIES, DecoderConfig, DecodeResult, ErrorCode
 from pharmacode.pipeline import load_and_decode
@@ -25,6 +26,7 @@ EXIT_NO_CANDIDATES = 4
 EXIT_VALIDATION_FAILED = 5
 EXIT_PARTIAL = 6
 EXIT_BENCHMARK_FAILED = 7
+EXIT_EXPECTATION_FAILED = 8
 
 
 def _fail(message: str, code: int) -> int:
@@ -97,6 +99,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="reject detections below this confidence as LOW_CONFIDENCE errors (0.0..1.0)",
     )
+    decode.add_argument(
+        "--expect",
+        type=int,
+        default=None,
+        help="exit 0 only if a detection reads this value, in either direction; else exit 8",
+    )
+    decode.add_argument(
+        "--report-geometry",
+        action="store_true",
+        help="add measured bar, gap and quiet-zone sizes, with the Laetus tolerances, to the JSON",
+    )
     decode.set_defaults(handler=run_decode)
 
     benchmark = commands.add_parser("benchmark", help="run the synthetic benchmark matrix")
@@ -158,8 +171,14 @@ def run_generate(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def exit_code_for(result: DecodeResult) -> int:
-    """Map a result to the documented exit codes."""
+def exit_code_for(result: DecodeResult, expect: int | None = None) -> int:
+    """Map a result to the documented exit codes.
+
+    With ``expect``, the answer is only whether a detection reads that value:
+    0 if one does, :data:`EXIT_EXPECTATION_FAILED` otherwise.
+    """
+    if expect is not None:
+        return EXIT_OK if result.matches(expect) else EXIT_EXPECTATION_FAILED
     if result.detections and not result.errors:
         return EXIT_OK
     if not result.detections:
@@ -177,6 +196,8 @@ def run_decode(args: argparse.Namespace) -> int:
         return _fail("--min-bars and --max-bars must satisfy 2 <= min <= max <= 16", EXIT_USAGE)
     if not 0.0 <= args.min_confidence <= 1.0:
         return _fail("--min-confidence must be between 0.0 and 1.0", EXIT_USAGE)
+    if args.expect is not None and not MIN_VALUE <= args.expect <= MAX_VALUE:
+        return _fail(f"--expect must be between {MIN_VALUE} and {MAX_VALUE}", EXIT_USAGE)
     config = DecoderConfig(
         dpi=None if auto_dpi else args.dpi,
         min_bars=args.min_bars,
@@ -192,7 +213,7 @@ def run_decode(args: argparse.Namespace) -> int:
     if resolution is not None and resolution.dpi is None:
         reason = resolution.note or "the file stores no resolution"
         print(f"note: --dpi auto: {reason}; decoding without DPI", file=sys.stderr)
-    payload = json.dumps(result.to_dict(), indent=2)
+    payload = json.dumps(result_payload(result, args.report_geometry, args.expect), indent=2)
     if args.json:
         try:
             Path(args.json).write_text(payload + "\n", encoding="utf-8")
@@ -205,7 +226,22 @@ def run_decode(args: argparse.Namespace) -> int:
             save_image(args.annotated, annotate(image, result))
         except InputError as exc:
             return _fail(str(exc), EXIT_INPUT)
-    return exit_code_for(result)
+    return exit_code_for(result, args.expect)
+
+
+def result_payload(
+    result: DecodeResult, include_geometry: bool = False, expect: int | None = None
+) -> dict[str, Any]:
+    """The JSON result, with ``geometry`` and an ``expected`` block when asked for."""
+    payload = result.to_dict(include_geometry)
+    if expect is not None:
+        matches = result.matches(expect)
+        payload["expected"] = {
+            "value": expect,
+            "matched": bool(matches),
+            "matches": [{"detection": index, "reading": reading} for index, reading in matches],
+        }
+    return payload
 
 
 def run_benchmark_command(args: argparse.Namespace) -> int:

@@ -49,6 +49,9 @@ Find and decode every Pharmacode in an image.
 | `--polarity {dark,light,auto}` | `dark` | `dark`: dark bars on a light background; `light`: light bars on a dark background; `auto`: the dark pass, then the light pass only if the dark one decoded nothing (`DecoderConfig.polarity`, see [algorithm.md](algorithm.md#3-pipeline)) |
 | `--min-confidence FLOAT` | 0.0 | reject a decoded candidate whose confidence falls below this as a `LOW_CONFIDENCE` error instead of a detection (`DecoderConfig.min_confidence`); must be 0.0..1.0 |
 
+| `--expect INT` | none | verification: exit 0 if a detection reads this value in either direction (`value` or `mirror_value`), exit 8 otherwise, whatever else the image holds; adds an [`expected`](#verification-with---expect) block to the JSON; must be 3..131070 |
+| `--report-geometry` | off | add a [`geometry`](#geometry-report) block to every detection: measured sizes in px and, with a DPI, in mm against the Laetus tolerances |
+
 `--min-bars` and `--max-bars` must satisfy `2 <= min-bars <= max-bars <= 16`.
 `--min-confidence` must be between 0.0 and 1.0.
 
@@ -149,21 +152,72 @@ A detection's `warnings` list holds zero or more of these strings:
 | `quiet_zone_below_nominal` | the smaller of the leading/trailing quiet zone is at or above the hard minimum (so decoding still succeeds) but below the nominal quiet zone (6 mm with `--dpi`, else 4x the estimated wide bar width) |
 | `quiet_zone_truncated_by_image_edge` | `--allow-cropped-quiet-zone` was given, the smaller quiet zone is below the hard minimum, and that side of the candidate touches the image border — the violation is downgraded to this warning instead of `QUIET_ZONE_VIOLATION` (`segmentation.validate_quiet_zone`) |
 
+### Verification with `--expect`
+
+With `--expect 1234` the JSON result gains:
+
+```json
+"expected": {"value": 1234, "matched": true, "matches": [{"detection": 0, "reading": "value"}]}
+```
+
+`matches` lists every detection that reads the value, by its index in
+`detections`, and whether its `value` or its `mirror_value` did; the format
+has no reading direction, so either counts. The exit code is then only the
+answer to "is it there": 0 if `matches` is not empty, 8 otherwise, even when
+other candidates in the image failed. A detection rejected by
+`--min-confidence` is an error, not a detection, so it never matches:
+combine the two for a stricter check. In Python: `DecodeResult.matches(value)`.
+
+### Geometry report
+
+`--report-geometry` (`DecodeResult.to_dict(include_geometry=True)` in
+Python) adds to every detection:
+
+```json
+"geometry": {
+  "bar_widths_px": [6, 6, 18], "gap_widths_px": [12, 12],
+  "bar_height_px": 94, "quiet_zone_px": [84, 83],
+  "pixel_mm": 0.085,
+  "bar_widths_mm": [0.508, 0.508, 1.524], "gap_widths_mm": [1.016, 1.016],
+  "bar_height_mm": 7.959, "quiet_zone_mm": [7.112, 7.027],
+  "variant": "standard",
+  "out_of_tolerance": [
+    {"element": "wide_bar", "index": 2, "mm": 2.794, "range_mm": [1.3, 2.5]}
+  ]
+}
+```
+
+The `_mm` fields, `pixel_mm`, `variant` and `out_of_tolerance` are `null`
+without a DPI. `variant` is the Laetus variant (`standard` or `miniature`,
+see [algorithm.md](algorithm.md#2-physical-dimensions)) whose ranges the
+most bars and gaps satisfy. `out_of_tolerance` lists every bar
+(`narrow_bar`, `wide_bar`) and `gap` outside that variant's range, by its
+index in reading order, and every `quiet_zone` (index 0 leading, 1
+trailing) below 6 mm, whose `range_mm` has no upper bound (`null`).
+
+It is a diagnostic, not a print-quality grade. Widths are the ones the
+decoder measured on its thresholded ink profile, so blur, ink spread and
+lighting move them, and they move in whole pixels: `pixel_mm` is the
+step, so a bar within a pixel of a limit can land on either side. The
+quiet zone is measured only as far as the candidate window reaches (7 to
+11 mm with DPI), so a wider quiet zone reads as the window's extent.
+
 ## Exit codes
 
 | code | name | meaning |
 |---|---|---|
 | 0 | `EXIT_OK` | every candidate in the image decoded successfully (at least one detection, no errors) |
-| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence`, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
+| 2 | `EXIT_USAGE` | a command-line argument was invalid (bad `--value`, non-positive `--dpi` or one that is neither a number nor `auto`, an out-of-range `generate` distortion parameter, `--min-bars`/`--max-bars` out of order, an out-of-range `--min-confidence` or `--expect`, an unknown `--polarity`, or an out-of-range `--min-correct`/`--max-false-positives`) — nothing was decoded and no JSON is produced |
 | 3 | `EXIT_INPUT` | an image file could not be read (`decode`'s input) or written (`generate --output`, or `decode --annotated`), the output path has an unrecognised suffix (`save_image` only knows the formats OpenCV can encode; an unknown suffix such as `.txt` fails the same way as a missing output directory), or `decode --json` could not be written to its path (e.g. the parent directory is missing); when the input cannot be read, no JSON is produced; when `decode --annotated` fails to write, the JSON has already been written or printed; when `decode --json` fails to write, no JSON reaches either destination (stdout is only used when `--json` is absent); `generate` has no JSON result to produce either way |
 | 4 | `EXIT_NO_CANDIDATES` | decoding ran but found no group of aligned bars at all (`NO_CANDIDATES`) |
 | 5 | `EXIT_VALIDATION_FAILED` | one or more candidates were found but every one of them failed segmentation or validation, or was rejected as `LOW_CONFIDENCE` |
 | 6 | `EXIT_PARTIAL` | a mix: at least one candidate decoded successfully and at least one other failed |
 | 7 | `EXIT_BENCHMARK_FAILED` | benchmark gate failed: a condition fell below `--min-correct` or negatives exceeded `--max-false-positives` |
+| 8 | `EXIT_EXPECTATION_FAILED` | `decode --expect`: no detection reads the expected value (replaces 0, 4, 5 and 6 whenever `--expect` is given; with a match the exit code is 0) |
 
 For `decode`, the JSON result is written (to `--json` or stdout) for every
-exit code that follows from actually running the decoder — 0, 4, 5 and 6, and
-the `--annotated`-write failure case of 3 — because it is produced right after
+exit code that follows from actually running the decoder — 0, 4, 5, 6 and 8,
+and the `--annotated`-write failure case of 3 — because it is produced right after
 `decode_image` returns, before the exit code itself is computed. The two
 cases with no JSON at all are a usage error (2) and an unreadable input file
 (3): both are caught before `decode_image` is called, so there is no result

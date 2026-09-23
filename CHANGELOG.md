@@ -14,6 +14,12 @@
   from PNG `pHYs`, JPEG JFIF/EXIF or TIFF metadata; it ignores camera photos, values below
   100 DPI and unequal horizontal/vertical resolutions. The JSON `image` reports `dpi_source`.
 - `generate` stores the DPI in the image file; `save_image` takes an optional `dpi`.
+- `decode --expect VALUE` exits 0 only when a detection reads that value in either direction,
+  else 8 (`EXIT_EXPECTATION_FAILED`), and adds an `expected` block to the JSON
+  (`DecodeResult.matches`).
+- `decode --report-geometry` adds each detection's measured bar, gap and quiet-zone sizes, in
+  mm with a DPI, and lists what falls outside the Laetus standard or miniature tolerances
+  (`pharmacode.geometry.geometry_report`).
 - Benchmark: a `patch` group (`inverted-auto`, `knockout-dark`), and every negative image is
   also decoded inverted, with `polarity="auto"`.
 
