@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python: ["3.10", "3.12"]
+        python: ["3.10", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -58,6 +58,7 @@ jobs:
           "$PY" -m pharmacode generate --value 12345 --dpi 300 --output smoke.png
           "$PY" -m pharmacode decode smoke.png --dpi 300 --json smoke.json
           "$PY" -c "import json; d = json.load(open('smoke.json')); assert d['detections'][0]['value'] == 12345, d"
+          "$PY" -c "from importlib.resources import files; assert files('pharmacode').joinpath('py.typed').is_file()"
       - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.os }}
