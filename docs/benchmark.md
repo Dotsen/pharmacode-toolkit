@@ -21,7 +21,7 @@ full matrix.
 Every condition renders 55 images: the 15 boundary values (3, 4, 5, 6, 7, 8,
 13, 25, 91, 100, 1234, 12345, 65535, 123456, 131070 — every all-narrow,
 all-wide, or otherwise structurally distinct case) plus 40 values drawn from a
-seeded random generator over the full `[3, 131070]` range. 23 conditions, by
+seeded random generator over the full `[3, 131070]` range. 25 conditions, by
 group:
 
 - **clean** — `clean-300`: no distortion, 300 DPI.
@@ -43,10 +43,18 @@ group:
 - **tolerance** — `miniature-600`: Laetus miniature dimensions at 600 DPI;
   `tolerance-max-gap`: bars and gap at the far edge of the Laetus tolerance
   range (narrow 0.7 mm, wide 2.5 mm, gap 2.5 mm).
+- **patch** — `inverted-auto`: light bars on a black patch inside a white
+  page, decoded with `polarity="auto"`; `knockout-dark`: dark bars on a white
+  patch inside a black page, decoded with the default `polarity="dark"`. In
+  both the patch leaves only the nominal 6 mm quiet zone, so its edge lies
+  inside the candidate window.
 
 Separately, 200 negative images (five kinds, cycled: a linear (non-Pharmacode)
 barcode, rows of text, a table, random stripes, and a blank page) are decoded
 and checked for any detection at all, to measure the false-positive rate.
+Each one is decoded twice, as rendered and inverted, both with
+`polarity="auto"` (which also runs the light pass whenever the dark pass
+finds nothing), so the report counts 400 negative images.
 
 ## Metrics
 
@@ -55,12 +63,13 @@ and checked for any detection at all, to measure the false-positive rate.
 - **correct** — the fraction where the target value (or its mirror) appears
   among the detections' `value`/`mirror_value`. Always `<= detected`.
 - **mean ms** — mean wall-clock time of `decode_image` per image.
-- **negatives / false positives** — of the 200 negative images, how many
+- **negatives / false positives** — of the 400 negative images, how many
   produced any detection at all; a Pharmacode reader should produce none.
 
 A failing image (target value not found) is saved, annotated, under
 `failures/<condition>/<value>.png`; a false positive is saved under
-`failures/negatives/<kind>-<index>.png`.
+`failures/negatives/<kind>-<index>.png` (`<kind>-<index>-inverted.png` for the
+inverted copy).
 
 ## CI gate
 
@@ -82,41 +91,43 @@ Pasted verbatim from `benchmark-output/results.md` (produced by
 ```markdown
 # Benchmark (seed 20260919, full)
 
-Python 3.13.5, numpy 2.5.3, OpenCV 5.0.0, Windows-10-10.0.19045-SP0
+Python 3.11.15, numpy 2.4.6, OpenCV 5.0.0, Linux-6.18.44-fc-v37-x86_64-with-glibc2.39
 
 | condition | group | images | detected | correct | mean ms |
 |---|---|---|---|---|---|
-| clean-300 | clean | 55 | 100.0% | 100.0% | 5.7 |
-| rotation-90 | rotation | 55 | 100.0% | 100.0% | 5.8 |
-| rotation-180 | rotation | 55 | 100.0% | 100.0% | 5.0 |
-| rotation-270 | rotation | 55 | 100.0% | 100.0% | 5.2 |
-| tilt-plus-3 | rotation | 55 | 100.0% | 100.0% | 5.6 |
-| tilt-minus-3 | rotation | 55 | 100.0% | 100.0% | 5.4 |
-| dpi-150 | dpi | 55 | 100.0% | 100.0% | 1.9 |
-| dpi-600 | dpi | 55 | 100.0% | 100.0% | 21.2 |
-| blur-1 | blur | 55 | 100.0% | 100.0% | 4.7 |
-| blur-2 | blur | 55 | 100.0% | 100.0% | 4.7 |
-| noise-10 | noise | 55 | 100.0% | 100.0% | 4.8 |
-| noise-25 | noise | 55 | 100.0% | 100.0% | 4.7 |
-| jpeg-50 | jpeg | 55 | 100.0% | 100.0% | 5.0 |
-| jpeg-30 | jpeg | 55 | 100.0% | 100.0% | 4.9 |
-| contrast-0.4 | contrast | 55 | 100.0% | 100.0% | 4.9 |
-| illumination-0.5 | illumination | 55 | 100.0% | 100.0% | 4.7 |
-| perspective-3 | perspective | 55 | 100.0% | 100.0% | 5.0 |
-| scale-0.7x1.3 | scale | 55 | 100.0% | 100.0% | 4.0 |
-| edge-corner | edge | 55 | 100.0% | 100.0% | 7.3 |
-| multi-3 | multi | 55 | 100.0% | 100.0% | 51.1 |
-| miniature-600 | tolerance | 55 | 100.0% | 100.0% | 14.7 |
-| tolerance-max-gap | tolerance | 55 | 100.0% | 100.0% | 7.3 |
-| dpi-150-blur-1 | blur | 55 | 100.0% | 100.0% | 1.8 |
+| clean-300 | clean | 55 | 100.0% | 100.0% | 10.2 |
+| rotation-90 | rotation | 55 | 100.0% | 100.0% | 9.2 |
+| rotation-180 | rotation | 55 | 100.0% | 100.0% | 9.4 |
+| rotation-270 | rotation | 55 | 100.0% | 100.0% | 9.5 |
+| tilt-plus-3 | rotation | 55 | 100.0% | 100.0% | 10.3 |
+| tilt-minus-3 | rotation | 55 | 100.0% | 100.0% | 10.7 |
+| dpi-150 | dpi | 55 | 100.0% | 100.0% | 3.2 |
+| dpi-600 | dpi | 55 | 100.0% | 100.0% | 37.1 |
+| blur-1 | blur | 55 | 100.0% | 100.0% | 8.5 |
+| blur-2 | blur | 55 | 100.0% | 100.0% | 9.6 |
+| noise-10 | noise | 55 | 100.0% | 100.0% | 9.3 |
+| noise-25 | noise | 55 | 100.0% | 100.0% | 8.5 |
+| jpeg-50 | jpeg | 55 | 100.0% | 100.0% | 8.6 |
+| jpeg-30 | jpeg | 55 | 100.0% | 100.0% | 9.0 |
+| contrast-0.4 | contrast | 55 | 100.0% | 100.0% | 10.0 |
+| illumination-0.5 | illumination | 55 | 100.0% | 100.0% | 10.5 |
+| perspective-3 | perspective | 55 | 100.0% | 100.0% | 10.2 |
+| scale-0.7x1.3 | scale | 55 | 100.0% | 100.0% | 8.2 |
+| edge-corner | edge | 55 | 100.0% | 100.0% | 14.7 |
+| multi-3 | multi | 55 | 100.0% | 100.0% | 87.2 |
+| miniature-600 | tolerance | 55 | 100.0% | 100.0% | 23.6 |
+| tolerance-max-gap | tolerance | 55 | 100.0% | 100.0% | 17.2 |
+| dpi-150-blur-1 | blur | 55 | 100.0% | 100.0% | 3.5 |
+| inverted-auto | patch | 55 | 100.0% | 100.0% | 72.7 |
+| knockout-dark | patch | 55 | 100.0% | 100.0% | 41.8 |
 
-Negatives: 200 images, 0 false positives (0.0%).
+Negatives: 400 images (each rendered negative also inverted, polarity auto), 0 false positives (0.0%).
 ```
 
 ## Known weak conditions
 
-None. Every one of the 23 conditions above detected and correctly decoded all
-55 images (100.0% / 100.0%), and none of the 200 negative images produced a
+None. Every one of the 25 conditions above detected and correctly decoded all
+55 images (100.0% / 100.0%), and none of the 400 negative images produced a
 false positive; `benchmark-output/failures/` is empty for this run. There is
 nothing to single out as weak here.
 

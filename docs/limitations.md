@@ -1,7 +1,19 @@
 # Limitations
 
-- **Dark-on-light only.** The decoder assumes dark bars on a light background;
-  inverted (light bars on a dark background) codes are not detected.
+- **Light bars on a dark background need `--polarity light` or `auto`.** The
+  default (`dark`) looks for dark bars on a light background only, as in
+  0.2; `auto` adds a second, inverted pass only when the first decodes
+  nothing. A code whose bars are partly lighter and partly darker than
+  their surroundings (printed across a boundary between two backgrounds)
+  is read by neither pass.
+- **A dark area closer than the nominal quiet zone ends the quiet zone.** When
+  a code sits on a light patch inside a dark area, the patch edge is where
+  its quiet zone ends: a margin of 3 to 6 mm decodes with
+  `quiet_zone_below_nominal`, a margin under 3 mm is a
+  `QUIET_ZONE_VIOLATION`. The edge is recognised only when it fills nearly
+  the whole candidate window height; a shorter dark object at the same
+  distance (a rule, a neighbouring graphic) is measured as a bar and the
+  candidate is rejected.
 - **Single-width-class codes without `--dpi`** (values whose bars are all
   narrow or all wide, e.g. 3, 7, 65535, 131070) cannot be classified against a
   physical boundary and fall back to the code's own nominal gap ratio instead;

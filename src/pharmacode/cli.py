@@ -13,7 +13,7 @@ import numpy as np
 from pharmacode import __version__
 from pharmacode.encoding import encode
 from pharmacode.io import InputError, load_image, save_image
-from pharmacode.models import DecoderConfig, DecodeResult, ErrorCode
+from pharmacode.models import POLARITIES, DecoderConfig, DecodeResult, ErrorCode
 from pharmacode.pipeline import decode_image
 from pharmacode.rendering import Distortion, RenderSpec, distort, render_bars
 from pharmacode.visualization import annotate
@@ -69,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="treat a quiet zone cut by the image edge as a warning instead of "
         "QUIET_ZONE_VIOLATION",
+    )
+    decode.add_argument(
+        "--polarity",
+        choices=POLARITIES,
+        default="dark",
+        help="dark bars on light (default), light bars on dark, or auto: try both",
     )
     decode.add_argument(
         "--min-confidence",
@@ -165,6 +171,7 @@ def run_decode(args: argparse.Namespace) -> int:
         max_bars=args.max_bars,
         allow_truncated_quiet_zone=args.allow_cropped_quiet_zone,
         min_confidence=args.min_confidence,
+        polarity=args.polarity,
     )
     result = decode_image(image, config, path=str(args.input))
     payload = json.dumps(result.to_dict(), indent=2)

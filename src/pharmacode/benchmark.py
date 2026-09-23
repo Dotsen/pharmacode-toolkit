@@ -42,6 +42,11 @@ class Condition:
     multi: bool = False
     edge: bool = False
     use_dpi: bool = True
+    # "knockout": dark bars on a white patch inside a black page; "inverted": light bars on
+    # a black patch inside a white page. Either way the patch leaves only the nominal 6 mm
+    # quiet zone, so its edge lies inside the candidate window.
+    patch: str | None = None
+    polarity: str = "dark"
 
     def render_spec(self) -> RenderSpec:
         return self.spec if self.spec is not None else RenderSpec(dpi=self.dpi)
@@ -79,11 +84,13 @@ def build_conditions(quick: bool) -> list[Condition]:
             spec=RenderSpec(narrow_mm=0.7, wide_mm=2.5, gap_mm=2.5),
         ),
         Condition("dpi-150-blur-1", "blur", 150.0, Distortion(blur_sigma=1.0)),
+        Condition("inverted-auto", "patch", 300.0, patch="inverted", polarity="auto"),
+        Condition("knockout-dark", "patch", 300.0, patch="knockout"),
     ]
     if quick:
         # One condition per group (the first that appears), so a slice can't silently drop
         # a whole group from CI coverage; rotation-180 is added on top for a second angle.
-        keep = {"clean", "rotation", "blur", "noise", "multi", "scale", "tolerance"}
+        keep = {"clean", "rotation", "blur", "noise", "multi", "scale", "tolerance", "patch"}
         selected: list[Condition] = []
         seen: set[str] = set()
         for c in conditions:
@@ -123,6 +130,11 @@ def _make_image(condition: Condition, value: int, rng: np.random.Generator) -> n
         )
     if condition.edge:
         code = compose_scene((code.shape[0] + 150, code.shape[1] + 150), [(code, 0, 0)])
+    if condition.patch is not None:
+        code = render_value(value, spec.with_updates(margin_mm=0.0))
+        page = np.zeros((code.shape[0] + 150, code.shape[1] + 150), dtype=np.uint8)
+        page[75 : 75 + code.shape[0], 75 : 75 + code.shape[1]] = code
+        code = 255 - page if condition.patch == "inverted" else page
     return (
         distort(code, condition.distortion, rng) if condition.distortion != Distortion() else code
     )
@@ -158,7 +170,9 @@ def run_benchmark(seed: int, output_dir: str | Path, quick: bool = False) -> dic
         detected = correct = 0
         elapsed: list[float] = []
         failed: list[dict[str, Any]] = []
-        config = DecoderConfig(dpi=condition.dpi if condition.use_dpi else None)
+        config = DecoderConfig(
+            dpi=condition.dpi if condition.use_dpi else None, polarity=condition.polarity
+        )
         for value in values:
             image = _make_image(condition, value, rng)
             start = time.perf_counter()
@@ -185,19 +199,30 @@ def run_benchmark(seed: int, output_dir: str | Path, quick: bool = False) -> dic
         }
     negative_count = 40 if quick else 200
     false_positives: list[dict[str, Any]] = []
+    # every negative is decoded as rendered and inverted, both with polarity "auto", which
+    # runs the light pass whenever the dark pass finds nothing: that covers the dark and
+    # the light pass on both the rendered clutter and its inverse
+    negative_config = DecoderConfig(polarity="auto")
     for index in range(negative_count):
         kind = NEGATIVE_KINDS[index % len(NEGATIVE_KINDS)]
-        image = render_negative(kind, rng)
-        result = decode_image(image, DecoderConfig())
-        if result.detections:
-            target = failures / "negatives"
-            target.mkdir(parents=True, exist_ok=True)
-            save_image(target / f"{kind}-{index}.png", annotate(image, result))
-            false_positives.append(
-                {"kind": kind, "index": index, "values": [d.value for d in result.detections]}
-            )
+        rendered = render_negative(kind, rng)
+        for inverted, image in ((False, rendered), (True, 255 - rendered)):
+            result = decode_image(image, negative_config)
+            if result.detections:
+                name = f"{kind}-{index}{'-inverted' if inverted else ''}"
+                target = failures / "negatives"
+                target.mkdir(parents=True, exist_ok=True)
+                save_image(target / f"{name}.png", annotate(image, result))
+                false_positives.append(
+                    {
+                        "kind": kind,
+                        "index": index,
+                        "inverted": inverted,
+                        "values": [d.value for d in result.detections],
+                    }
+                )
     report["negatives"] = {
-        "images": negative_count,
+        "images": 2 * negative_count,
         "false_positives": len(false_positives),
         "false_positive_rate": len(false_positives) / negative_count,
         "cases": false_positives,
@@ -241,7 +266,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     negatives = report["negatives"]
     lines += [
         "",
-        f"Negatives: {negatives['images']} images, {negatives['false_positives']} false positives "
+        f"Negatives: {negatives['images']} images (each rendered negative also inverted, "
+        f"polarity auto), {negatives['false_positives']} false positives "
         f"({negatives['false_positive_rate']:.1%}).",
         "",
     ]

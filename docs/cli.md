@@ -43,6 +43,7 @@ Find and decode every Pharmacode in an image.
 | `--min-bars INT` | 2 | reject candidates with fewer bars than this (2..16) |
 | `--max-bars INT` | 16 | reject candidates with more bars than this (2..16) |
 | `--allow-cropped-quiet-zone` | off | turn a quiet zone cut by the image edge into a `quiet_zone_truncated_by_image_edge` warning instead of `QUIET_ZONE_VIOLATION` (`DecoderConfig.allow_truncated_quiet_zone`); a violation on a side that is not touching the image border is still an error |
+| `--polarity {dark,light,auto}` | `dark` | `dark`: dark bars on a light background; `light`: light bars on a dark background; `auto`: the dark pass, then the light pass only if the dark one decoded nothing (`DecoderConfig.polarity`, see [algorithm.md](algorithm.md#3-pipeline)) |
 | `--min-confidence FLOAT` | 0.0 | reject a decoded candidate whose confidence falls below this as a `LOW_CONFIDENCE` error instead of a detection (`DecoderConfig.min_confidence`); must be 0.0..1.0 |
 
 `--min-bars` and `--max-bars` must satisfy `2 <= min-bars <= max-bars <= 16`.
@@ -100,6 +101,10 @@ for `NO_CANDIDATES`, which has no candidate to attach to); see
 [algorithm.md](algorithm.md#5-detection-errors-versus-decoding-errors) for
 what each `code` means and when it appears instead of, or alongside, a
 detection.
+
+A detection's `polarity` is `"dark"` (dark bars on a light background) or
+`"light"` (light bars on a dark background), whichever pass of
+`--polarity` read it.
 
 A detection's `warnings` list holds zero or more of these strings:
 

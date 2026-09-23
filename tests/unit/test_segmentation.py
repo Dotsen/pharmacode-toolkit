@@ -18,6 +18,7 @@ from pharmacode.segmentation import (
     _truncated_sides,
     bar_profile,
     classify_widths,
+    drop_background_edges,
     extract_bars_from_upright,
     measure_heights,
     measure_runs,
@@ -223,3 +224,33 @@ def test_extract_bars_too_many(count: int) -> None:
     image = render_bars((N,) * count)
     error = extract_bars_from_upright(image, DecoderConfig())
     assert isinstance(error, DecodeError) and error.code is ErrorCode.TOO_MANY_BARS
+
+
+def _mask_with_columns(height: int, columns: list[tuple[int, int, int, int]]) -> np.ndarray:
+    """0/255 mask with ink in ``(x, width, top, bottom)`` column blocks."""
+    mask = np.zeros((height, 120), dtype=np.uint8)
+    for x, width, top, bottom in columns:
+        mask[top:bottom, x : x + width] = 255
+    return mask
+
+
+def test_drop_background_edges_removes_full_height_runs_at_both_ends() -> None:
+    bars = [(30, 4, 25, 75), (40, 4, 25, 75), (50, 4, 25, 75)]
+    mask = _mask_with_columns(100, [(0, 10, 0, 100), *bars, (110, 10, 0, 100)])
+    runs = runs_from_profile((mask[40:60] > 0).mean(axis=0), 0.5)
+    trimmed = drop_background_edges(mask, runs, 50, DecoderConfig())
+    kept_bars, _, leading, trailing = measure_runs(trimmed)
+    assert [start for start, _ in kept_bars] == [30, 40, 50]
+    assert (leading, trailing) == (20, 56)
+
+
+def test_drop_background_edges_keeps_bars_of_a_tightly_cropped_code() -> None:
+    mask = _mask_with_columns(100, [(10, 4, 0, 100), (30, 4, 0, 100), (50, 4, 0, 100)])
+    runs = runs_from_profile((mask[40:60] > 0).mean(axis=0), 0.5)
+    assert drop_background_edges(mask, runs, 50, DecoderConfig()) == runs
+
+
+def test_drop_background_edges_keeps_a_tall_run_that_does_not_fill_the_window() -> None:
+    mask = _mask_with_columns(100, [(10, 4, 20, 85), (30, 4, 30, 70), (50, 4, 30, 70)])
+    runs = runs_from_profile((mask[40:60] > 0).mean(axis=0), 0.5)
+    assert drop_background_edges(mask, runs, 50, DecoderConfig()) == runs

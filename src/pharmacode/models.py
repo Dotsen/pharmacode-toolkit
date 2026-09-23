@@ -102,11 +102,13 @@ class DecodedPharmacode:
     confidence: float
     warnings: tuple[str, ...] = ()
     bar_rects: tuple[BarRect, ...] = ()  # geometry for annotation; not part of the JSON contract
+    polarity: str = "dark"  # "dark": dark bars on light; "light": light bars on dark
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "bbox": self.bbox.to_dict(),
             "orientation_deg": round(float(self.orientation_deg), 2),
+            "polarity": self.polarity,
             "bars": [bar.value for bar in self.bars],
             "bar_widths_px": list(self.bar_widths_px),
             "value": self.value,
@@ -166,6 +168,9 @@ class DecodeResult:
         }
 
 
+POLARITIES = ("dark", "light", "auto")
+
+
 @dataclass(frozen=True)
 class DecoderConfig:
     """All thresholds of the pipeline with their origin.
@@ -178,6 +183,10 @@ class DecoderConfig:
     dpi: float | None = None
     min_bars: int = 2
     max_bars: int = 16
+    # "dark": dark bars on a light background (printed codes); "light": light bars on a
+    # dark background (inverted); "auto": the dark pass first, the light pass only when the
+    # dark pass decodes nothing
+    polarity: str = "dark"
 
     # detection: background flattening and component filtering
     background_kernel_fraction: float = 0.05  # closing kernel = 5 % of the longer side
@@ -249,6 +258,10 @@ class DecoderConfig:
     # warning instead of QUIET_ZONE_VIOLATION
     allow_truncated_quiet_zone: bool = False
     max_height_deviation: float = 0.20  # bars of one code share one height
+    # an ink run at the end of the profile that covers this much of the window height (and
+    # stands taller than the bars) is the edge of a dark area around the code, not a bar; the
+    # window is twice the bar length, so a bar alone covers about half of it
+    background_edge_height_fraction: float = 0.9
     gap_ratio_range: tuple[float, float] = (
         0.6,
         1.5,
@@ -265,6 +278,8 @@ class DecoderConfig:
                 f"min_bars and max_bars must satisfy 2 <= min_bars <= max_bars <= 16, "
                 f"got min_bars={self.min_bars}, max_bars={self.max_bars}"
             )
+        if self.polarity not in POLARITIES:
+            raise ValueError(f"polarity must be one of {POLARITIES}, got {self.polarity!r}")
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError(
                 f"min_confidence must be between 0.0 and 1.0, got {self.min_confidence}"
