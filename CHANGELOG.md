@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-09-24
+
+Light-on-dark codes, DPI from file metadata, verification against an expected value,
+batch decoding with diagnostics, and SVG output.
 
 - The package ships a `py.typed` marker (PEP 561), so type checkers use its annotations.
 - CI also tests Python 3.13, which the package metadata already declared.
