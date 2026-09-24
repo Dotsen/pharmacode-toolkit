@@ -66,11 +66,15 @@ for environments where installing a console script is inconvenient.
 From Python:
 
 ```python
-from pharmacode import DecoderConfig, decode_image, load_image
+from pharmacode import DecoderConfig, decode_file, decode_image, load_image
 
 result = decode_image(load_image("sample.png"), DecoderConfig(dpi=300))
 for code in result.detections:
     print(code.value, code.mirror_value, code.confidence)
+
+# load, take the DPI from the file's metadata, decode; check against an expected value
+result = decode_file("sample.png", DecoderConfig(polarity="auto"), auto_dpi=True)
+print(result.matches(12345), result.to_dict(include_geometry=True))
 ```
 
 ## Supported input

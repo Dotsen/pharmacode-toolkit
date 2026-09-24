@@ -14,7 +14,7 @@ Render a synthetic Pharmacode image.
 |---|---|---|
 | `--value INT` (required) | - | integer 3..131070 to encode |
 | `--output PATH` (required) | - | output PNG, JPEG or TIFF path, or an `.svg` path for a vector (see below) |
-| `--dpi FLOAT` | 300.0 | render resolution; must be positive |
+| `--dpi FLOAT` | 300.0 | render resolution; must be a positive finite number |
 | `--miniature` | off | use the Laetus miniature dimensions instead of standard |
 | `--rotation FLOAT` | 0.0 | rotation in degrees, counter-clockwise |
 | `--scale-x FLOAT` | 1.0 | horizontal scale factor; must be > 0 |
@@ -301,11 +301,14 @@ quiet zone is measured only as far as the candidate window reaches (7 to
 
 For `decode`, the JSON result is written (to `--json` or stdout) for every
 exit code that follows from actually running the decoder — 0, 4, 5, 6 and 8,
-and the `--annotated`-write failure case of 3 — because it is produced right after
+and the `--annotated`- or `--debug-dir`-write failure case of 3 — because it is produced right after
 `decode_image` returns, before the exit code itself is computed. The two
 cases with no JSON at all are a usage error (2) and an unreadable input file
 (3): both are caught before `decode_image` is called, so there is no result
 to report.
+
+`batch` writes one such result per image (see [above](#pharmacode-batch))
+and exits 0, 2, 3 or 9.
 
 `generate` and `benchmark` do not produce this JSON result; `generate` prints
 its own one-line summary on success (see above) and exits 0, 2 or 3.

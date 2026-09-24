@@ -292,7 +292,11 @@ constructed as a `DecodeError` by the pipeline itself: an unreadable input
 file or an invalid command-line argument is rejected by the CLI before
 `decode_image` is even called, and is reported only as an `error:` line on
 stderr and a non-zero exit code (see [docs/cli.md](cli.md)) — no JSON is
-produced for that image at all.
+produced for that image at all. The one exception is `pharmacode batch`,
+which goes on past an unreadable file and writes a JSON Lines record for it
+with a single `INPUT_UNREADABLE` error (see
+[cli.md](cli.md#pharmacode-batch)); that record, too, comes from the CLI,
+not from `decode_image`.
 
 ## 6. Confidence
 
