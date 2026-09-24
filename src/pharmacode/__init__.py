@@ -36,7 +36,7 @@ from pharmacode.rendering import (
 from pharmacode.segmentation import extract_bars_from_upright
 from pharmacode.visualization import annotate
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "MAX_BARS",

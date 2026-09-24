@@ -186,7 +186,7 @@ checks the report against `--min-correct` and `--max-false-positives` (see
 
 ```json
 {
-  "version": "0.2.1",
+  "version": "0.3.0",
   "image": {
     "path": "value_1234.png",
     "width": 208,
